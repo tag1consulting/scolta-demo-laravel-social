@@ -156,7 +156,7 @@ return [
         'binary' => env('SCOLTA_PAGEFIND_BINARY', 'pagefind'),
         'build_dir' => env('SCOLTA_BUILD_DIR', storage_path('scolta/build')),
         'output_dir' => env('SCOLTA_OUTPUT_DIR', public_path('scolta-pagefind')),
-        'auto_rebuild' => env('SCOLTA_AUTO_REBUILD', true),
+        'auto_rebuild' => env('SCOLTA_AUTO_REBUILD', false),
     ],
 
     /*

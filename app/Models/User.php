@@ -17,6 +17,7 @@ class User extends Model
         'avatar_url',
         'joined_at',
         'archetype',
+        'secondary_interest',
         'posting_frequency',
     ];
 

@@ -38,7 +38,6 @@
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/vendor/scolta/scolta.css">
     <style>
         body { background-color: #F8F8F6; color: #374151; font-family: 'Inter', system-ui, sans-serif; }
         .post-body { line-height: 1.6; font-size: 1rem; }
@@ -118,10 +117,18 @@
             <aside class="hidden xl:block w-64 flex-shrink-0">
                 <div class="sticky top-20 space-y-4">
 
-                    {{-- Search callout --}}
+                    {{-- Scolta showcase --}}
                     <div class="bg-teal-800 text-white rounded-xl p-4">
-                        <h3 class="font-semibold text-sm mb-1">Semantic Search</h3>
-                        <p class="text-xs text-teal-100 leading-relaxed">Search understands meaning, not just keywords. Try <a href="{{ route('search', ['q' => 'puppy problems']) }}" class="underline hover:text-white">puppy problems</a> or <a href="{{ route('search', ['q' => 'cooking disasters']) }}" class="underline hover:text-white">cooking disasters</a>.</p>
+                        <div class="flex items-center gap-2 mb-2">
+                            <svg class="w-4 h-4 text-teal-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                            <h3 class="font-semibold text-sm">Semantic Search Demo</h3>
+                        </div>
+                        <p class="text-xs text-teal-100 leading-relaxed mb-3">Scolta finds meaning — not just keywords. These queries return posts that share no words with the query:</p>
+                        <div class="space-y-1">
+                            @foreach(['puppy problems', 'cooking disasters', 'feeling overwhelmed', 'working from home struggles', 'fitness journey', 'garden updates'] as $q)
+                            <a href="{{ route('search', ['q' => $q]) }}" class="block text-xs text-teal-200 hover:text-white py-0.5 transition-colors">→ "{{ $q }}"</a>
+                            @endforeach
+                        </div>
                     </div>
 
                     {{-- Trending hashtags --}}
@@ -191,8 +198,6 @@
         </a>
     </nav>
 
-    <script src="/vendor/scolta/wasm/scolta_core.js"></script>
-    <script src="/vendor/scolta/scolta.js"></script>
     @stack('scripts')
 </body>
 </html>

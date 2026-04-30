@@ -49,7 +49,7 @@ class Post extends Model
 
     public function hashtags(): BelongsToMany
     {
-        return $this->belongsToMany(Hashtag::class);
+        return $this->belongsToMany(Hashtag::class, 'post_hashtag');
     }
 
     public function isReply(): bool
@@ -91,6 +91,6 @@ class Post extends Model
 
     public function scopeSearchable($query)
     {
-        return $query->whereNull('parent_id');
+        return $query->whereNull('parent_id')->with(['user', 'hashtags']);
     }
 }

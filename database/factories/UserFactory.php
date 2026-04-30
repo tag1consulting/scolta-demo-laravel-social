@@ -3,42 +3,24 @@
 namespace Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
 
-/**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\User>
- */
 class UserFactory extends Factory
 {
-    /**
-     * The current password being used by the factory.
-     */
-    protected static ?string $password;
-
-    /**
-     * Define the model's default state.
-     *
-     * @return array<string, mixed>
-     */
     public function definition(): array
     {
-        return [
-            'name' => fake()->name(),
-            'email' => fake()->unique()->safeEmail(),
-            'email_verified_at' => now(),
-            'password' => static::$password ??= Hash::make('password'),
-            'remember_token' => Str::random(10),
-        ];
-    }
+        $username = $this->faker->unique()->userName();
+        $archetypes = ['pet_parent', 'home_cook', 'fitness', 'new_parent', 'gardener',
+            'commuter', 'remote_worker', 'student', 'traveler', 'diy_maker',
+            'book_reader', 'gamer', 'music_fan', 'weather_watcher', 'sports_fan'];
 
-    /**
-     * Indicate that the model's email address should be unverified.
-     */
-    public function unverified(): static
-    {
-        return $this->state(fn (array $attributes) => [
-            'email_verified_at' => null,
-        ]);
+        return [
+            'display_name'      => $this->faker->name(),
+            'username'          => $username,
+            'bio'               => $this->faker->sentence(),
+            'avatar_url'        => "https://api.dicebear.com/9.x/bottts-neutral/svg?seed={$username}",
+            'joined_at'         => $this->faker->dateTimeBetween('-6 months', 'now'),
+            'archetype'         => $this->faker->randomElement($archetypes),
+            'posting_frequency' => $this->faker->randomElement(['power', 'moderate', 'casual']),
+        ];
     }
 }
