@@ -56,7 +56,7 @@ return [
     */
 
     'site_name' => env('SCOLTA_SITE_NAME', 'MyStream'),
-    'site_description' => env('SCOLTA_SITE_DESCRIPTION', 'a social media platform where people share everyday moments — pets, food, fitness, travel, hobbies, and daily life'),
+    'site_description' => env('SCOLTA_SITE_DESCRIPTION', 'Social media platform where people share everyday moments — pets, food, fitness, travel, hobbies, and daily life. Thousands of short informal posts from ~100 users. The hardest content type for search: conversational text with slang, abbreviations, and no formal structure.'),
 
     /*
     |--------------------------------------------------------------------------
@@ -170,14 +170,14 @@ return [
     */
 
     'scoring' => [
-        'title_match_boost' => 1.0,
+        'title_match_boost' => 1.5,
         'title_all_terms_multiplier' => 1.5,
-        'content_match_boost' => 0.4,
-        'recency_boost_max' => 0.5,
-        'recency_half_life_days' => 365,
+        'content_match_boost' => 0.6,
+        'recency_boost_max' => 0.3,
+        'recency_half_life_days' => 180,
         'recency_penalty_after_days' => 1825,
         'recency_max_penalty' => 0.3,
-        'expand_primary_weight' => 0.5,
+        'expand_primary_weight' => 0.7,
 
         // Language-aware stop words (0.2.2+)
         // ISO 639-1 code for stop word filtering. Supported: ar, ca, da, de, el,
@@ -204,8 +204,8 @@ return [
     */
 
     'excerpt_length' => 300,
-    'results_per_page' => 10,
-    'max_pagefind_results' => 50,
+    'results_per_page' => 12,
+    'max_pagefind_results' => 60,
     'ai_summary_top_n' => 10,
     'ai_summary_max_chars' => 4000,
 
