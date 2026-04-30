@@ -1,4 +1,6 @@
 .git
+.github
+.jj
 vendor
 node_modules
 .env
