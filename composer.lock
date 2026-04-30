@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "9cada3fdf8f7a2b6817e1cd518e134eb",
+    "content-hash": "67ca2720f1f6dd50dbf8cbbbd03c631f",
     "packages": [
         {
             "name": "brick/math",
@@ -5860,16 +5860,16 @@
         },
         {
             "name": "tag1/scolta-laravel",
-            "version": "0.3.5",
+            "version": "0.3.7",
             "source": {
                 "type": "git",
                 "url": "https://github.com/tag1consulting/scolta-laravel.git",
-                "reference": "2eab7cee5c82a649cca83efd51a7559c9653a0ca"
+                "reference": "a068342beea728501fbf2c488b023d92622c40df"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/tag1consulting/scolta-laravel/zipball/2eab7cee5c82a649cca83efd51a7559c9653a0ca",
-                "reference": "2eab7cee5c82a649cca83efd51a7559c9653a0ca",
+                "url": "https://api.github.com/repos/tag1consulting/scolta-laravel/zipball/a068342beea728501fbf2c488b023d92622c40df",
+                "reference": "a068342beea728501fbf2c488b023d92622c40df",
                 "shasum": ""
             },
             "require": {
@@ -5928,23 +5928,23 @@
             ],
             "description": "Scolta AI Search for Laravel — zero-infrastructure AI-powered search with Pagefind",
             "support": {
-                "source": "https://github.com/tag1consulting/scolta-laravel/tree/v0.3.5",
+                "source": "https://github.com/tag1consulting/scolta-laravel/tree/v0.3.7",
                 "issues": "https://github.com/tag1consulting/scolta-laravel/issues"
             },
-            "time": "2026-04-28T10:23:18+00:00"
+            "time": "2026-04-30T07:56:06+00:00"
         },
         {
             "name": "tag1/scolta-php",
-            "version": "0.3.5",
+            "version": "0.3.7",
             "source": {
                 "type": "git",
                 "url": "https://github.com/tag1consulting/scolta-php.git",
-                "reference": "c5382ff79db27ecb691b9bac8c063103cbe7a770"
+                "reference": "2228bb863ebf0fa1507e5f0ac14897d9efb6106a"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/tag1consulting/scolta-php/zipball/c5382ff79db27ecb691b9bac8c063103cbe7a770",
-                "reference": "c5382ff79db27ecb691b9bac8c063103cbe7a770",
+                "url": "https://api.github.com/repos/tag1consulting/scolta-php/zipball/2228bb863ebf0fa1507e5f0ac14897d9efb6106a",
+                "reference": "2228bb863ebf0fa1507e5f0ac14897d9efb6106a",
                 "shasum": ""
             },
             "require": {
@@ -5996,10 +5996,10 @@
             ],
             "description": "AI-powered search with Pagefind — PHP language binding",
             "support": {
-                "source": "https://github.com/tag1consulting/scolta-php/tree/v0.3.5",
+                "source": "https://github.com/tag1consulting/scolta-php/tree/v0.3.7",
                 "issues": "https://github.com/tag1consulting/scolta-php/issues"
             },
-            "time": "2026-04-28T10:22:19+00:00"
+            "time": "2026-04-30T07:56:08+00:00"
         },
         {
             "name": "tijsverkoyen/css-to-inline-styles",
