@@ -1,0 +1,15 @@
+name: mystream
+type: laravel
+php_version: "8.3"
+mariadb_version: "10.11"
+webserver_type: nginx-fpm
+docroot: public
+nodejs_version: "20"
+
+web_environment:
+  - APP_ENV=local
+  - APP_DEBUG=true
+
+hooks:
+  post-start:
+    - exec-host: .ddev/post-start.sh
