@@ -29,7 +29,7 @@
                 <img src="{{ $u->avatar_url }}" alt="" class="w-12 h-12 rounded-full flex-shrink-0 bg-gray-200">
                 <div class="min-w-0">
                     <p class="font-semibold text-charcoal truncate">{{ $u->display_name }}</p>
-                    <p class="text-gray-400 text-sm truncate">@{{ $u->username }}</p>
+                    <p class="text-gray-400 text-sm truncate">{{ '@'.$u->username }}</p>
                     <p class="text-gray-500 text-xs mt-0.5">{{ number_format($u->posts_count) }} posts</p>
                 </div>
             </a>

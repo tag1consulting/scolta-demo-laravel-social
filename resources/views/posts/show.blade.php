@@ -22,7 +22,7 @@
         <div class="w-8 flex justify-center">
             <div class="w-0.5 h-4 bg-gray-300"></div>
         </div>
-        <span>Replying to @{{ $post->parent->user->username }}</span>
+        <span>Replying to {{ '@'.$post->parent->user->username }}</span>
     </div>
     @endif
 
@@ -37,7 +37,7 @@
                     {{ $post->user->display_name }}
                 </a>
                 <a href="{{ route('users.show', $post->user) }}" class="block text-gray-400 text-sm hover:text-gray-600">
-                    @{{ $post->user->username }}
+                    {{ '@'.$post->user->username }}
                 </a>
             </div>
         </div>

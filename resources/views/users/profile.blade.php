@@ -13,7 +13,7 @@
                 <button class="text-sm border border-gray-300 text-charcoal px-4 py-1.5 rounded-full font-medium hover:bg-gray-50 transition-colors opacity-75 cursor-not-allowed" title="Follow disabled in demo">Follow</button>
             </div>
             <h1 class="text-lg font-bold text-charcoal">{{ $user->display_name }}</h1>
-            <p class="text-gray-400 text-sm">@{{ $user->username }}</p>
+            <p class="text-gray-400 text-sm">{{ '@'.$user->username }}</p>
             @if($user->bio)
             <p class="text-charcoal text-sm mt-2 leading-relaxed">{{ $user->bio }}</p>
             @endif

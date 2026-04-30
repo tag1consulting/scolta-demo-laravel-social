@@ -11,7 +11,7 @@
                     {{ $post->user->display_name }}
                 </a>
                 <a href="{{ route('users.show', $post->user) }}" class="text-gray-400 text-sm hover:text-gray-600">
-                    @{{ $post->user->username }}
+                    {{ '@'.$post->user->username }}
                 </a>
                 <span class="text-gray-400 text-xs">·</span>
                 <a href="{{ route('posts.show', $post) }}" class="text-gray-400 text-xs hover:text-gray-600" title="{{ $post->created_at->format('M j, Y g:i A') }}">
@@ -22,7 +22,7 @@
             @if($post->parent_id && $post->relationLoaded('parent') && $post->parent)
             <p class="text-xs text-gray-400 mt-0.5">
                 Replying to
-                <a href="{{ route('users.show', $post->parent->user) }}" class="text-teal-600 hover:underline">@{{ $post->parent->user->username ?? '...' }}</a>
+                <a href="{{ route('users.show', $post->parent->user) }}" class="text-teal-600 hover:underline">{{ '@'.($post->parent->user->username ?? '...') }}</a>
             </p>
             @endif
 

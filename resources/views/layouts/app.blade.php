@@ -162,7 +162,7 @@
                                 <img src="{{ $u->avatar_url }}" alt="" class="w-8 h-8 rounded-full flex-shrink-0 bg-gray-200">
                                 <div class="min-w-0">
                                     <p class="text-sm font-medium text-charcoal truncate">{{ $u->display_name }}</p>
-                                    <p class="text-xs text-gray-400 truncate">@{{ $u->username }}</p>
+                                    <p class="text-xs text-gray-400 truncate">{{ '@'.$u->username }}</p>
                                 </div>
                             </a>
                             @endforeach

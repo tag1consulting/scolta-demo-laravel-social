@@ -8,9 +8,10 @@ class FeedController extends Controller
 {
     public function index()
     {
+        $seed = date('Ymd');
         $posts = Post::with(['user', 'hashtags'])
             ->whereNull('parent_id')
-            ->latest()
+            ->orderByRaw("RAND($seed)")
             ->paginate(20);
 
         return view('feed.index', compact('posts'));
