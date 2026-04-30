@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>@yield('title', 'MyStream') — MyStream</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -50,8 +51,16 @@
     {{-- Top bar --}}
     <header class="bg-teal-800 text-white sticky top-0 z-50 shadow-sm">
         <div class="max-w-6xl mx-auto px-4 py-3 flex items-center gap-4">
-            <a href="{{ route('feed') }}" class="text-xl font-bold tracking-tight flex-shrink-0 hover:text-teal-100 transition-colors">
-                MyStream
+            <a href="{{ route('feed') }}" class="flex items-center gap-2 flex-shrink-0 hover:opacity-90 transition-opacity">
+                <svg width="34" height="22" viewBox="0 0 36 22" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    {{-- stream body: a winding S-curve --}}
+                    <path d="M 2 14 Q 10 5, 18 13 Q 26 21, 34 11"
+                          stroke="white" stroke-width="7" stroke-linecap="round"/>
+                    {{-- ripple highlight --}}
+                    <path d="M 3 14 Q 11 6, 18 13 Q 25 20, 33 11"
+                          stroke="rgba(255,255,255,0.45)" stroke-width="2.5" stroke-linecap="round"/>
+                </svg>
+                <span class="text-xl font-bold tracking-tight text-white">MyStream</span>
             </a>
             <div class="flex-1 max-w-lg">
                 <form action="{{ route('search') }}" method="GET" class="relative">
