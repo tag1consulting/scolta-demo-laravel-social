@@ -152,6 +152,7 @@ RUN a2enmod rewrite remoteip
 COPY --from=composer /app .
 
 RUN mkdir -p /app/storage/framework/views && \
+    mkdir -p /app/storage/framework/sessions && \
     chown -R 1001:0 /app/storage /app/bootstrap/cache && \
     chmod -R g+rwX /app/storage /app/bootstrap/cache
 
