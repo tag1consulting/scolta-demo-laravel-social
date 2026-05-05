@@ -9,6 +9,7 @@ nodejs_version: "20"
 web_environment:
   - APP_ENV=local
   - APP_DEBUG=true
+  - SCOLTA_PRESET=blog
 
 hooks:
   post-start:

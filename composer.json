@@ -7,10 +7,11 @@
     "license": "MIT",
     "require": {
         "php": "^8.2",
+        "cweagans/composer-patches": "^1.7",
         "laravel/framework": "^11.31",
         "laravel/tinker": "^2.9",
-        "tag1/scolta-laravel": "0.3.8",
-        "tag1/scolta-php": "0.3.8"
+        "tag1/scolta-laravel": "0.3.9",
+        "tag1/scolta-php": "0.3.9"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",
@@ -57,6 +58,12 @@
     "extra": {
         "laravel": {
             "dont-discover": []
+        },
+        "composer-exit-on-patch-failure": true,
+        "patches": {
+            "tag1/scolta-php": {
+                "URL normalization and filters support (pending v0.3.10)": "patches/scolta-php-url-and-filters.patch"
+            }
         }
     },
     "repositories": [
@@ -74,6 +81,7 @@
         "preferred-install": "dist",
         "sort-packages": true,
         "allow-plugins": {
+            "cweagans/composer-patches": true,
             "pestphp/pest-plugin": true,
             "php-http/discovery": true
         }
