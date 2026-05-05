@@ -25,7 +25,7 @@
  *   - Title match boost: word-boundary matching, all-terms multiplier
  *   - Content match boost: word-boundary matching against excerpt
  *   - Expanded-term weight decay: 0.7 → 0.65 → 0.60 → ... min 0.4
- *   - Jaccard deduplication: 0.7 threshold on title word overlap
+ *   - Jaccard deduplication: 0.6 threshold on title word overlap
  *   - OR fallback: if AND search returns <5 results, search each term individually
  *   - Parallel data loading: all .data() calls across all searches in one Promise.all()
  *   - Dual scoring: expanded results scored vs source term AND original query, higher wins
@@ -493,7 +493,9 @@
   }
 
   function stripHtml(text) {
-    return text.replace(/<[^>]*>/g, "");
+    const div = document.createElement("div");
+    div.innerHTML = text;
+    return div.textContent || div.innerText || "";
   }
 
   // Build LLM context string from an array of scored results.
@@ -525,7 +527,12 @@
         if (inList) { html += '</ul>'; inList = false; }
         continue;
       }
-      if (trimmed.startsWith('- ')) {
+      const headingMatch = trimmed.match(/^(#{1,3}) (.+)/);
+      if (headingMatch) {
+        if (inList) { html += '</ul>'; inList = false; }
+        const tag = `h${headingMatch[1].length + 2}`;
+        html += `<${tag}>${formatInline(headingMatch[2])}</${tag}>`;
+      } else if (trimmed.startsWith('- ')) {
         if (!inList) { html += '<ul>'; inList = true; }
         html += `<li>${formatInline(trimmed.substring(2))}</li>`;
       } else {
@@ -726,19 +733,41 @@
     return pagefind.search(query, searchOpts);
   }
 
+  // Pagefind's data.locations are not word positions — compute from content instead.
+  function computeContentWordLocations(content, queryTerms) {
+    if (!content || !queryTerms || queryTerms.length < 2) return null;
+    const words = content.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 0);
+    const termsLower = queryTerms.map(t => t.toLowerCase().replace(/[^a-z0-9]/g, ''));
+    const locations = [];
+    words.forEach((word, idx) => {
+      if (termsLower.some(term => {
+        if (word === term) return true;
+        const minLen = Math.max(3, Math.min(word.length, term.length) - 2);
+        return word.substring(0, minLen) === term.substring(0, minLen);
+      })) {
+        locations.push(idx);
+      }
+    });
+    return locations.length >= queryTerms.length ? locations : null;
+  }
+
   // Score a set of loaded results against a query.
   function scoreResults(loaded, query, sourceWeight, primaryQuery) {
     if (scoltaWasm) {
       // WASM scoring — canonical Rust implementation
-      const results = loaded.map((data, i) => ({
-        title: data.meta?.title || '',
-        url: data.meta?.url || data.url || '',
-        excerpt: data.excerpt || '',
-        date: data.meta?.date || '',
-        pagefind_index: i,
-        score: loaded.length > 1 ? 1 - (i / (loaded.length - 1)) : 1,
-        locations: data.locations || [],
-      }));
+      const queryTerms = extractSearchTerms(query);
+      const results = loaded.map((data, i) => {
+        const contentLocations = computeContentWordLocations(data.content || '', queryTerms);
+        return {
+          title: data.meta?.title || '',
+          url: data.meta?.url || data.url || '',
+          excerpt: data.excerpt || '',
+          date: data.meta?.date || '',
+          pagefind_index: i,
+          score: loaded.length > 1 ? 1 - (i / (loaded.length - 1)) : 1,
+          locations: contentLocations || data.locations || [],
+        };
+      });
       // WASM config keys are snake_case; getInstanceConfig() returns
       // SCREAMING_SNAKE_CASE for the platform adapter layer. Convert here.
       const screaming = getInstanceConfig();
@@ -823,12 +852,15 @@
         continue;
       }
 
-      // Check against all kept titles for high overlap (Jaccard >= 0.7)
+      // Check against all kept titles for high overlap (Jaccard >= 0.6)
+      // or predominant overlap (>=3 shared words AND intersection/min >= 0.6)
       let isDuplicate = false;
       for (const seen of seenTitles) {
         const intersection = [...words].filter(w => seen.words.has(w)).length;
         const union = new Set([...words, ...seen.words]).size;
-        if (union > 0 && intersection / union >= 0.7) {
+        const smaller = Math.min(words.size, seen.words.size);
+        if ((union > 0 && intersection / union >= 0.6) ||
+            (intersection >= 3 && intersection / smaller >= 0.6)) {
           isDuplicate = true;
           break;
         }
@@ -874,17 +906,34 @@
       try {
         const output = scoltaWasm.merge_results(input);
         const merged = JSON.parse(output);
+        // WASM may normalize URLs (strip .html, trailing slash, lowercase) before
+        // deduplication, so its output URLs may not match the raw keys from pagefind.
+        // Build a multi-key map with normalized variants so we can always find the
+        // original result object to attach its full data.
+        const normalizeUrl = u => (u || '').replace(/\.html$/, '').replace(/\/$/, '').toLowerCase();
         const dataByUrl = new Map();
         for (const r of [...currentResults, ...newResults]) {
-          const url = r.data.meta?.url || r.data.url || '';
-          if (!dataByUrl.has(url) || r.score > dataByUrl.get(url).score) {
-            dataByUrl.set(url, r);
+          const rawUrl = r.data.meta?.url || r.data.url || '';
+          for (const key of [rawUrl, normalizeUrl(rawUrl), rawUrl.replace(/^\/+/, ''), normalizeUrl(rawUrl).replace(/^\/+/, '')]) {
+            if (key && (!dataByUrl.has(key) || r.score > dataByUrl.get(key).score)) {
+              dataByUrl.set(key, r);
+            }
           }
         }
-        return merged.map(item => ({
-          data: dataByUrl.get(item.url)?.data || item,
-          score: item.score,
-        }));
+        let lookupMisses = 0;
+        const resolvedMerged = merged.map(item => {
+          const iUrl = item.url || '';
+          const found = dataByUrl.get(iUrl)
+            || dataByUrl.get(normalizeUrl(iUrl))
+            || dataByUrl.get(iUrl.replace(/^\/+/, ''))
+            || dataByUrl.get(normalizeUrl(iUrl).replace(/^\/+/, ''));
+          if (!found) lookupMisses++;
+          return { data: found?.data || item, score: item.score };
+        });
+        if (lookupMisses > 0) {
+          console.warn('[scolta:merge] WASM URL lookup missed', lookupMisses, '/', merged.length);
+        }
+        return resolvedMerged;
       } catch (e) {
         console.warn("[scolta] WASM merge_results failed, using fallback:", e.message);
       }
@@ -1139,23 +1188,23 @@
     renderFilters();
     renderResults();
 
-    // Phase 2: Expanded searches — asynchronous merge
-    expandPromise.then(expandedTerms => {
+    // Phase 2+3: Expand, merge, then summarize with the final reordered results.
+    // Summarize is intentionally deferred until after expansion so the AI sees
+    // the same ranking the user sees (expanded terms promote more relevant results).
+    expandPromise.then(async expandedTerms => {
       if (!preserveFilters) {
         lastExpandedTerms = expandedTerms;
       }
       renderExpandedTerms(expandedTerms, query);
-      mergeExpandedSearchResults(expandedTerms, query, searchQuery, preserveFilters, version);
-    });
+      await mergeExpandedSearchResults(expandedTerms, query, searchQuery, preserveFilters, version);
 
-    // Phase 3: AI summarization
-    const earlyExpandedTerms = lastExpandedTerms && !preserveFilters
-      ? null
-      : lastExpandedTerms;
-    const expandedLabel = earlyExpandedTerms
-      ? earlyExpandedTerms.filter(t => t.toLowerCase() !== query.toLowerCase())
-      : [];
-    summarizeResults(query, allScoredResults, expandedLabel);
+      if (version !== searchVersion) return;
+
+      const expandedLabel = expandedTerms
+        ? expandedTerms.filter(t => t.toLowerCase() !== query.toLowerCase())
+        : [];
+      summarizeResults(query, allScoredResults, expandedLabel);
+    });
   }
 
   function clearSearch() {
