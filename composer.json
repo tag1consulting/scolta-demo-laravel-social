@@ -12,8 +12,8 @@
         "php": "^8.2",
         "laravel/framework": "^11.31",
         "laravel/tinker": "^2.9",
-        "tag1/scolta-laravel": "0.3.10",
-        "tag1/scolta-php": "0.3.10"
+        "tag1/scolta-laravel": "^1.0@dev",
+        "tag1/scolta-php": "^1.0@dev"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",
