@@ -1,6 +1,6 @@
 name: mystream
 type: laravel
-php_version: "8.3"
+php_version: "8.4"
 mariadb_version: "10.11"
 webserver_type: nginx-fpm
 docroot: public
