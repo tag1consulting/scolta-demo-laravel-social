@@ -110,6 +110,12 @@
                         </svg>
                         Search
                     </a>
+                    <a href="{{ route('about.demo') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-charcoal hover:bg-teal-50 hover:text-teal-800 font-medium transition-colors {{ request()->routeIs('about.demo') ? 'bg-teal-50 text-teal-800' : '' }}">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        About This Demo
+                    </a>
                     <div class="pt-4 border-t border-gray-200 mt-4">
                         <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider px-3 mb-2">MyStream</p>
                         <p class="text-xs text-gray-500 px-3 leading-relaxed">A demo platform showcasing Scolta semantic search on social content.</p>
@@ -204,6 +210,12 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
             </svg>
             <span class="text-xs">Search</span>
+        </a>
+        <a href="{{ route('about.demo') }}" class="flex flex-col items-center gap-0.5 px-4 py-1 {{ request()->routeIs('about.demo') ? 'text-teal-700' : 'text-gray-500' }}">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <span class="text-xs">About</span>
         </a>
     </nav>
 

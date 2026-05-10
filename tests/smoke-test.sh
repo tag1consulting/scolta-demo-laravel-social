@@ -59,3 +59,7 @@ if [ "$PAGE_COUNT" -lt "$MIN_PAGES" ]; then
   exit 1
 fi
 echo "PASS: $PAGE_COUNT pages indexed (minimum: $MIN_PAGES)"
+
+echo "==> Verifying About page view exists..."
+test -f resources/views/about.blade.php || (echo "FAIL: resources/views/about.blade.php missing from repo" && exit 1)
+echo "PASS: resources/views/about.blade.php committed (About page available at /about/demo)"

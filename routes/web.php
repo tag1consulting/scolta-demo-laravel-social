@@ -14,3 +14,6 @@ Route::get('/search', [SearchController::class, 'index'])->name('search');
 Route::get('/user/{user:username}', [UserController::class, 'show'])->name('users.show');
 Route::get('/post/{post}', [PostController::class, 'show'])->name('posts.show');
 Route::get('/hashtag/{hashtag:name}', [HashtagController::class, 'show'])->name('hashtags.show');
+Route::get('/about/demo', function () {
+    return view('about');
+})->name('about.demo');
