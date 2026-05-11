@@ -14,4 +14,4 @@ else
 fi
 
 ddev exec php artisan config:cache
-ddev exec php artisan route:cache
+ddev exec php artisan route:clear
