@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "e676acd309f91204229fff47e98abd73",
+    "content-hash": "cd596570d1bd1f82bc62212093ec2d52",
     "packages": [
         {
             "name": "brick/math",
@@ -5859,16 +5859,16 @@
         },
         {
             "name": "tag1/scolta-laravel",
-            "version": "dev-main",
+            "version": "1.0.0-rc1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/tag1consulting/scolta-laravel.git",
-                "reference": "1c34dca72c0e7017e7ca8d73b6ac71a29512f359"
+                "reference": "ecf326b6a6042bde669e90f2d4bd9ee70bf58da6"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/tag1consulting/scolta-laravel/zipball/1c34dca72c0e7017e7ca8d73b6ac71a29512f359",
-                "reference": "1c34dca72c0e7017e7ca8d73b6ac71a29512f359",
+                "url": "https://api.github.com/repos/tag1consulting/scolta-laravel/zipball/ecf326b6a6042bde669e90f2d4bd9ee70bf58da6",
+                "reference": "ecf326b6a6042bde669e90f2d4bd9ee70bf58da6",
                 "shasum": ""
             },
             "require": {
@@ -5884,7 +5884,6 @@
                 "orchestra/testbench": "^9.0|^10.0|^11.0",
                 "phpunit/phpunit": "^10.0|^11.0"
             },
-            "default-branch": true,
             "type": "library",
             "extra": {
                 "branch-alias": {
@@ -5931,23 +5930,23 @@
             ],
             "description": "Scolta AI Search for Laravel — zero-infrastructure AI-powered search with Pagefind",
             "support": {
-                "source": "https://github.com/tag1consulting/scolta-laravel/tree/main",
+                "source": "https://github.com/tag1consulting/scolta-laravel/tree/v1.0.0-rc1",
                 "issues": "https://github.com/tag1consulting/scolta-laravel/issues"
             },
-            "time": "2026-05-11T09:28:41+00:00"
+            "time": "2026-05-11T17:02:38+00:00"
         },
         {
             "name": "tag1/scolta-php",
-            "version": "dev-main",
+            "version": "1.0.0-rc1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/tag1consulting/scolta-php.git",
-                "reference": "cfdf151a59a1414f4b1c78a9171f20794381a920"
+                "reference": "92167e5338d7cca84c63a03eea25e87e9ddd9ee0"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/tag1consulting/scolta-php/zipball/cfdf151a59a1414f4b1c78a9171f20794381a920",
-                "reference": "cfdf151a59a1414f4b1c78a9171f20794381a920",
+                "url": "https://api.github.com/repos/tag1consulting/scolta-php/zipball/92167e5338d7cca84c63a03eea25e87e9ddd9ee0",
+                "reference": "92167e5338d7cca84c63a03eea25e87e9ddd9ee0",
                 "shasum": ""
             },
             "require": {
@@ -5963,7 +5962,6 @@
             "suggest": {
                 "ext-intl": "Improves Unicode diacritic normalization quality. Falls back to strtr() mapping without it."
             },
-            "default-branch": true,
             "type": "library",
             "extra": {
                 "branch-alias": {
@@ -6005,10 +6003,10 @@
             ],
             "description": "AI-powered search with Pagefind — PHP language binding",
             "support": {
-                "source": "https://github.com/tag1consulting/scolta-php/tree/main",
+                "source": "https://github.com/tag1consulting/scolta-php/tree/v1.0.0-rc1",
                 "issues": "https://github.com/tag1consulting/scolta-php/issues"
             },
-            "time": "2026-05-11T15:25:09+00:00"
+            "time": "2026-05-11T17:02:28+00:00"
         },
         {
             "name": "tijsverkoyen/css-to-inline-styles",
@@ -8749,10 +8747,10 @@
         }
     ],
     "aliases": [],
-    "minimum-stability": "stable",
+    "minimum-stability": "RC",
     "stability-flags": {
-        "tag1/scolta-laravel": 20,
-        "tag1/scolta-php": 20
+        "tag1/scolta-laravel": 5,
+        "tag1/scolta-php": 5
     },
     "prefer-stable": true,
     "prefer-lowest": false,
