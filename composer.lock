@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "31f49adb62dddd6bdbdbaef1eb3bbd63",
+    "content-hash": "93b67ac28233d1db36de28a37d4065ec",
     "packages": [
         {
             "name": "brick/math",
@@ -5859,16 +5859,16 @@
         },
         {
             "name": "tag1/scolta-laravel",
-            "version": "1.0.0-rc2",
+            "version": "dev-main",
             "source": {
                 "type": "git",
                 "url": "https://github.com/tag1consulting/scolta-laravel.git",
-                "reference": "3d03b246390dfde78da9d014c2912824549ec441"
+                "reference": "4a21c218a8cf11baf9642338f34f1a72fdda07d2"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/tag1consulting/scolta-laravel/zipball/3d03b246390dfde78da9d014c2912824549ec441",
-                "reference": "3d03b246390dfde78da9d014c2912824549ec441",
+                "url": "https://api.github.com/repos/tag1consulting/scolta-laravel/zipball/4a21c218a8cf11baf9642338f34f1a72fdda07d2",
+                "reference": "4a21c218a8cf11baf9642338f34f1a72fdda07d2",
                 "shasum": ""
             },
             "require": {
@@ -5880,10 +5880,12 @@
                 "tag1/scolta-php": "^1.0"
             },
             "require-dev": {
+                "larastan/larastan": "^3.0",
                 "laravel/pint": "^1.0",
                 "orchestra/testbench": "^9.0|^10.0|^11.0",
                 "phpunit/phpunit": "^10.0|^11.0"
             },
+            "default-branch": true,
             "type": "library",
             "extra": {
                 "branch-alias": {
@@ -5915,6 +5917,9 @@
                 "format": [
                     "pint"
                 ],
+                "analyse": [
+                    "phpstan analyse --no-progress --memory-limit=256M"
+                ],
                 "validate-release": [
                     "php scripts/validate-release.php"
                 ]
@@ -5930,14 +5935,14 @@
             ],
             "description": "Scolta AI Search for Laravel — zero-infrastructure AI-powered search with Pagefind",
             "support": {
-                "source": "https://github.com/tag1consulting/scolta-laravel/tree/v1.0.0-rc2",
+                "source": "https://github.com/tag1consulting/scolta-laravel/tree/main",
                 "issues": "https://github.com/tag1consulting/scolta-laravel/issues"
             },
-            "time": "2026-05-12T18:54:15+00:00"
+            "time": "2026-05-13T09:44:01+00:00"
         },
         {
             "name": "tag1/scolta-php",
-            "version": "1.0.0-rc2",
+            "version": "dev-main",
             "source": {
                 "type": "git",
                 "url": "https://github.com/tag1consulting/scolta-php.git",
@@ -5962,6 +5967,7 @@
             "suggest": {
                 "ext-intl": "Improves Unicode diacritic normalization quality. Falls back to strtr() mapping without it."
             },
+            "default-branch": true,
             "type": "library",
             "extra": {
                 "branch-alias": {
@@ -8751,7 +8757,10 @@
     ],
     "aliases": [],
     "minimum-stability": "dev",
-    "stability-flags": {},
+    "stability-flags": {
+        "tag1/scolta-laravel": 20,
+        "tag1/scolta-php": 20
+    },
     "prefer-stable": true,
     "prefer-lowest": false,
     "platform": {
