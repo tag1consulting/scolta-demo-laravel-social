@@ -3,7 +3,7 @@ set -euo pipefail
 
 PORT=8080
 IMAGE="scolta-smoke-$$"
-PAGEFIND_ENTRY_URL="http://localhost:${PORT}/scolta-pagefind/pagefind-entry.json"
+PAGEFIND_ENTRY_URL="http://localhost:${PORT}/scolta-pagefind/pagefind/pagefind-entry.json"
 MIN_PAGES=12000
 
 echo "==> Building Docker image..."
