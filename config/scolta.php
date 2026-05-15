@@ -80,6 +80,8 @@ return [
         App\Models\Post::class,
     ],
 
+    'sortable_fields' => ['star_count', 'date'],
+
     /*
     |--------------------------------------------------------------------------
     | Pagefind
