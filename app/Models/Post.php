@@ -86,6 +86,9 @@ class Post extends Model
             url: route('posts.show', $this),
             date: $this->created_at->format('Y-m-d'),
             siteName: 'MyStream',
+            sortable: [
+                'star_count' => $this->star_count,
+            ],
         );
     }
 
