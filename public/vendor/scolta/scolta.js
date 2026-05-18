@@ -230,6 +230,9 @@
   let searchVersion = 0;
   let usedOrFallback = false;
   let pagefindBase = '';   // Set during initPagefind(); used by resolveUrl().
+  let currentSortOverride = null;    // { field, direction } or null — active sort override
+  let llmAppliedFilters = {};        // { dimension: value } — filters injected by LLM expansion
+  let expansionInFlight = false;     // true while an expand-query HTTP request is pending
 
   // Detect default language filter from instanceConfig.currentLanguage or <html lang>.
   // Applied on every fresh search unless the URL already specifies f_language.
@@ -479,8 +482,20 @@
       }
       const data = await resp.json();
       console.log("[scolta:expand] response:", data);
-      const terms = Array.isArray(data) ? data : (Array.isArray(data?.terms) ? data.terms : null);
-      return terms;
+      if (Array.isArray(data)) {
+        return { terms: data, sort_hint: null, subject_terms: null, filter_hint: null };
+      }
+      const terms = Array.isArray(data?.terms) ? data.terms : null;
+      if (!terms) return null;
+      const sh = data.sort_hint;
+      const sort_hint = (sh && typeof sh.field === 'string' && sh.field &&
+                         (sh.direction === 'asc' || sh.direction === 'desc'))
+        ? { field: sh.field, direction: sh.direction } : null;
+      const subject_terms = Array.isArray(data?.subject_terms) ? data.subject_terms : null;
+      const fh = data.filter_hint;
+      const filter_hint = (fh && typeof fh === 'object' && !Array.isArray(fh))
+        ? fh : null;
+      return { terms, sort_hint, subject_terms, filter_hint };
     } catch (e) {
       if (e.name === 'AbortError') return null;
       if (e instanceof TypeError) return null;
@@ -489,7 +504,7 @@
     }
   }
 
-  async function summarizeResults(query, results, expandedTerms = []) {
+  async function summarizeResults(query, results, expandedTerms = [], sortHint = null, filterHint = null) {
     const CONFIG = getInstanceConfig();
     const endpoints = getInstanceEndpoints();
     if (!CONFIG.AI_SUMMARIZE || results.length === 0) return null;
@@ -528,15 +543,32 @@
           },
         });
         const extractOutput = JSON.parse(scoltaWasm.batch_extract_context(extractInput));
-        context = extractOutput.map((item, i) =>
-          `[${i + 1}] ${item.title}\n${item.url}\n${item.context}`
-        ).join('\n\n');
+        context = extractOutput.map((item, i) => {
+          const metaLine = buildMetadataLine(topN[i], sortHint, filterHint);
+          return `[${i + 1}] ${item.title}\n${item.url}\n${metaLine}${item.context}`;
+        }).join('\n\n');
       } catch (e) {
         console.warn('[scolta] WASM context extraction failed, using fallback', e);
-        context = buildLLMContext(topN);
+        context = buildLLMContext(topN, sortHint, filterHint);
       }
     } else {
-      context = buildLLMContext(topN);
+      context = buildLLMContext(topN, sortHint, filterHint);
+    }
+
+    let contextHeader = '';
+    if (sortHint) {
+      contextHeader += `[Results are sorted by "${sortHint.field}" in ${sortHint.direction === 'desc' ? 'descending' : 'ascending'} order]\n`;
+    }
+    if (filterHint) {
+      const filterParts = Object.entries(filterHint)
+        .filter(([dim, val]) => dim && val)
+        .map(([dim, val]) => `"${dim}: ${val}"`);
+      if (filterParts.length > 0) {
+        contextHeader += `[Results are filtered by ${filterParts.join(', ')}]\n`;
+      }
+    }
+    if (contextHeader) {
+      context = contextHeader + '\n' + context;
     }
 
     try {
@@ -612,9 +644,30 @@
     return div.textContent || div.innerText || "";
   }
 
+  // Build a metadata annotation line from a result's meta fields.
+  // Annotates the sort field with direction and filter fields with ← markers.
+  function buildMetadataLine(r, sortHint = null, filterHint = null) {
+    const metaParts = [];
+    if (r.data.meta) {
+      for (const [key, value] of Object.entries(r.data.meta)) {
+        if (key === 'title' || value === undefined || value === null || value === '') continue;
+        const strVal = String(value).substring(0, 100);
+        let annotation = '';
+        if (sortHint && sortHint.field === key) {
+          annotation = ` ← SORTED BY THIS FIELD (${sortHint.direction === 'desc' ? 'descending' : 'ascending'})`;
+        }
+        if (filterHint && filterHint[key]) {
+          annotation += ` ← FILTERED BY THIS FIELD`;
+        }
+        metaParts.push(`${key}: ${strVal}${annotation}`);
+      }
+    }
+    return metaParts.length > 0 ? `Metadata: ${metaParts.join(' | ')}\n` : '';
+  }
+
   // Build LLM context string from an array of scored results.
   // Top 2 results get full page content for depth; remaining get excerpts.
-  function buildLLMContext(results) {
+  function buildLLMContext(results, sortHint = null, filterHint = null) {
     const CONFIG = getInstanceConfig();
     return results.map((r, i) => {
       const title = r.data.meta?.title || "Untitled";
@@ -624,7 +677,8 @@
         ? stripHtml(r.data.content || r.data.excerpt || "")
         : stripHtml(r.data.excerpt || "");
       const trimmed = text.substring(0, CONFIG.AI_SUMMARY_MAX_CHARS);
-      return `[${i + 1}] ${title}\n${url}\n${trimmed}`;
+      const metaLine = buildMetadataLine(r, sortHint, filterHint);
+      return `[${i + 1}] ${title}\n${url}\n${metaLine}${trimmed}`;
     }).join("\n\n");
   }
 
@@ -864,9 +918,65 @@
     doSearch();
   }
 
+  function renderSortIndicator(override) {
+    const el = els.sortIndicator;
+    if (!override || !override.field) {
+      el.style.display = 'none';
+      el.innerHTML = '';
+      return;
+    }
+    const dirLabel = override.direction === 'desc' ? 'highest first' : 'lowest first';
+    el.style.display = 'block';
+    el.innerHTML = '<span class="scolta-sort-badge">Sorted by: ' + escapeHtml(override.field) +
+      ' (' + dirLabel + ') ' +
+      '<button class="scolta-sort-dismiss" data-scolta-sort-dismiss aria-label="Remove sort">×</button></span>';
+  }
+
+  function dismissSortOverride() {
+    currentSortOverride = null;
+    renderSortIndicator(null);
+    // Re-run the full search without sort so all matching docs are reconsidered
+    // by BM25 relevance. We can't simply swap arrays — the sorted result set
+    // excluded pages that lacked price metadata, so the relevance set is different.
+    doSearch(true);
+  }
+
+  function renderFilterBadges() {
+    const el = els.filterIndicator;
+    if (!el) return;
+    if (Object.keys(llmAppliedFilters).length === 0) {
+      el.style.display = 'none';
+      el.innerHTML = '';
+      return;
+    }
+    el.style.display = 'block';
+    let html = '';
+    for (const [dim, val] of Object.entries(llmAppliedFilters)) {
+      html += '<span class="scolta-filter-badge">Filtered: ' + escapeHtml(dim) + ' = ' + escapeHtml(val) +
+        ' <button class="scolta-filter-dismiss" data-scolta-filter-dismiss="' + escapeHtml(dim) +
+        '" aria-label="Remove filter">×</button></span> ';
+    }
+    el.innerHTML = html;
+  }
+
+  function dismissLlmFilter(dim) {
+    const val = llmAppliedFilters[dim];
+    if (val !== undefined) {
+      delete llmAppliedFilters[dim];
+      if (activeFilters[dim]) {
+        activeFilters[dim].delete(val);
+        if (activeFilters[dim].size === 0) {
+          delete activeFilters[dim];
+        }
+      }
+    }
+    renderFilterBadges();
+    doSearch(true);
+  }
+
   // --- Pagefind search helper ---
 
-  async function pagefindSearch(query, filters) {
+  async function pagefindSearch(query, filters, sortHint) {
     const searchOpts = {};
     if (filters && typeof filters === 'object') {
       const pagefindFilters = {};
@@ -879,6 +989,9 @@
       if (Object.keys(pagefindFilters).length > 0) {
         searchOpts.filters = pagefindFilters;
       }
+    }
+    if (sortHint && sortHint.field && sortHint.direction) {
+      searchOpts.sort = { [sortHint.field]: sortHint.direction };
     }
     return pagefind.search(query, searchOpts);
   }
@@ -1176,14 +1289,15 @@
     return results;
   }
 
-  async function mergeExpandedSearchResults(expandedTerms, originalQuery, searchQuery, preserveFilters, version) {
+  async function mergeExpandedSearchResults(expandedTerms, originalQuery, searchQuery, preserveFilters, version, sortOverride, subjectTerms) {
     const CONFIG = getInstanceConfig();
-    if (!expandedTerms || expandedTerms.length === 0) return;
+    const validTerms = expandedTerms
+      ? expandedTerms.filter(t => t.toLowerCase() !== originalQuery.toLowerCase())
+      : [];
 
-    const validTerms = expandedTerms.filter(
-      t => t.toLowerCase() !== originalQuery.toLowerCase()
-    );
-    if (validTerms.length === 0) return;
+    // For the relevance path we need expanded terms; for the sort path we proceed
+    // even with none (we still run the primary query with native sort).
+    if (validTerms.length === 0 && !sortOverride) return;
 
     if (version !== searchVersion) {
       console.log('[scolta:expand] Discarding stale expansion (version', version, 'vs current', searchVersion, ')');
@@ -1198,43 +1312,155 @@
       }
     }
 
-    const queries = [];
-    let weightIndex = 0;
-    // Per-term scores are scaled by (1 - expand_primary_weight) so that expansion terms
-    // start at the correct base weight relative to the primary query results.
-    const expandBase = 1.0 - CONFIG.EXPAND_PRIMARY_WEIGHT;
-    for (const term of validTerms) {
-      const weight = Math.max(expandBase - (weightIndex * 0.05), 0.1);
-      queries.push({ term, weight });
-      weightIndex++;
-
-      const words = extractSearchTerms(term);
-      if (words.length > 1) {
-        for (const word of words) {
-          if (word.length > 2 && !queries.some(q => q.term === word)) {
-            const wordWeight = Math.max(expandBase - (weightIndex * 0.05), 0.1);
-            queries.push({ term: word, weight: wordWeight });
-            weightIndex++;
+    if (sortOverride && sortOverride.field && sortOverride.direction) {
+      // Native sort path: pass sort to Pagefind so it sorts ALL matching documents
+      // at the index level before returning. We load the top N from each already-sorted
+      // result set, then merge by URL dedup and sort the merged set by the sort field.
+      // This avoids the old bug where BM25 selected the top-50 first, then we tried
+      // to sort those 50 — expensive items outside the top-50 were never loaded.
+      const termSet = new Set([searchQuery]);
+      for (const term of validTerms) {
+        termSet.add(term);
+        const words = extractSearchTerms(term);
+        if (words.length > 1) {
+          for (const word of words) {
+            if (word.length > 2) termSet.add(word);
           }
         }
       }
+
+      // Run sorted searches and subject-only search in parallel.
+      const subjectSearchP = (subjectTerms && subjectTerms.length > 0)
+        ? pagefindSearch(subjectTerms.join(' '), activeFilters)
+        : Promise.resolve(null);
+
+      const [searches, subjectSearch] = await Promise.all([
+        Promise.all([...termSet].map(t => pagefindSearch(t, activeFilters, sortOverride))),
+        subjectSearchP,
+      ]);
+
+      if (version !== searchVersion) {
+        console.log('[scolta:expand] Discarding stale expansion after sort search (version', version, 'vs current', searchVersion, ')');
+        return;
+      }
+
+      // Load top N from each sorted search and merge by URL (first occurrence wins —
+      // searches are already sorted by the sort field, so first-seen is the best match).
+      const urlMap = new Map();
+      await Promise.all(searches.map(async (search) => {
+        const toLoad = Math.min(search.results.length, CONFIG.MAX_PAGEFIND_RESULTS);
+        if (toLoad === 0) return;
+        const loaded = await Promise.all(search.results.slice(0, toLoad).map(r => r.data()));
+        for (const data of loaded) {
+          const url = resolveUrl(data.url || '');
+          if (!urlMap.has(url)) urlMap.set(url, data);
+        }
+      }));
+
+      // Load subject-filter results for intersection.
+      let subjectUrlSet = null;
+      if (subjectSearch && subjectSearch.results.length > 0) {
+        const subjectToLoad = Math.min(subjectSearch.results.length, CONFIG.MAX_PAGEFIND_RESULTS);
+        const subjectLoaded = await Promise.all(
+          subjectSearch.results.slice(0, subjectToLoad).map(r => r.data())
+        );
+        const normUrl = u => (u || '').replace(/\.html$/, '').replace(/\/$/, '').toLowerCase();
+        subjectUrlSet = new Set(subjectLoaded.map(d => normUrl(resolveUrl(d.url || ''))));
+      } else if (subjectTerms && subjectTerms.length > 0) {
+        subjectUrlSet = new Set(); // subject search ran but returned nothing
+      }
+
+      if (version !== searchVersion) {
+        console.log('[scolta:expand] Discarding stale expansion after sort load (version', version, 'vs current', searchVersion, ')');
+        return;
+      }
+
+      const field = sortOverride.field;
+      const desc = sortOverride.direction === 'desc';
+      const withField = [...urlMap.values()].filter(data => {
+        const v = data.meta?.[field];
+        return v !== undefined && v !== null && v !== '';
+      });
+
+      if (withField.length === 0) {
+        console.log('[scolta:sort] Sort field "' + field + '" absent from all results, falling back to relevance');
+        currentSortOverride = null;
+      } else {
+        withField.sort((a, b) => {
+          const av = parseFloat(a.meta[field]);
+          const bv = parseFloat(b.meta[field]);
+          const cmp = (!isNaN(av) && !isNaN(bv))
+            ? av - bv
+            : String(a.meta[field] || '').localeCompare(String(b.meta[field] || ''));
+          return desc ? -cmp : cmp;
+        });
+
+        // Dual-search intersection: when subject terms are available, keep only
+        // sorted results whose URL also appears in the subject-only search.
+        // This prevents OR-matched common terms (e.g. "expensive") from dominating
+        // results when the user's actual subject (e.g. "tooth") is rarer.
+        if (subjectUrlSet && subjectUrlSet.size > 0) {
+          const normUrl = u => (u || '').replace(/\.html$/, '').replace(/\/$/, '').toLowerCase();
+          const intersection = withField.filter(d => subjectUrlSet.has(normUrl(resolveUrl(d.url || ''))));
+          if (intersection.length >= 3) {
+            allScoredResults = intersection.map(data => ({ data, score: 0 }));
+          } else if (intersection.length > 0) {
+            // Intersection too small — prepend subject-matched items, append the rest.
+            const intNorms = new Set(intersection.map(d => normUrl(resolveUrl(d.url || ''))));
+            const remainder = withField.filter(d => !intNorms.has(normUrl(resolveUrl(d.url || ''))));
+            allScoredResults = [...intersection, ...remainder].map(data => ({ data, score: 0 }));
+          } else {
+            console.warn('[scolta:sort] Subject filter intersection empty, using sorted results');
+            allScoredResults = withField.map(data => ({ data, score: 0 }));
+          }
+        } else if (subjectUrlSet !== null) {
+          // Subject search returned no results — fall back to sorted results.
+          console.warn('[scolta:sort] Subject filter search returned no results, using sorted results');
+          allScoredResults = withField.map(data => ({ data, score: 0 }));
+        } else {
+          allScoredResults = withField.map(data => ({ data, score: 0 }));
+        }
+      }
+
+    } else {
+      // Relevance path: existing multi-term expand-and-merge behavior.
+      const queries = [];
+      let weightIndex = 0;
+      const expandBase = 1.0 - CONFIG.EXPAND_PRIMARY_WEIGHT;
+      for (const term of validTerms) {
+        const weight = Math.max(expandBase - (weightIndex * 0.05), 0.1);
+        queries.push({ term, weight });
+        weightIndex++;
+
+        const words = extractSearchTerms(term);
+        if (words.length > 1) {
+          for (const word of words) {
+            if (word.length > 2 && !queries.some(q => q.term === word)) {
+              const wordWeight = Math.max(expandBase - (weightIndex * 0.05), 0.1);
+              queries.push({ term: word, weight: wordWeight });
+              weightIndex++;
+            }
+          }
+        }
+      }
+
+      const expandedResults = await searchAndLoadParallel(queries, activeFilters, searchQuery);
+
+      if (version !== searchVersion) {
+        console.log('[scolta:expand] Discarding stale expansion after load (version', version, 'vs current', searchVersion, ')');
+        return;
+      }
+
+      allScoredResults = mergeResults(
+        allScoredResults,
+        expandedResults,
+        CONFIG.EXPAND_PRIMARY_WEIGHT,
+        1.0 - CONFIG.EXPAND_PRIMARY_WEIGHT
+      );
+      allScoredResults.sort((a, b) => b.score - a.score);
+      allScoredResults = deduplicateByTitle(allScoredResults);
     }
 
-    const expandedResults = await searchAndLoadParallel(queries, activeFilters, searchQuery);
-
-    if (version !== searchVersion) {
-      console.log('[scolta:expand] Discarding stale expansion after load (version', version, 'vs current', searchVersion, ')');
-      return;
-    }
-
-    allScoredResults = mergeResults(
-      allScoredResults,
-      expandedResults,
-      CONFIG.EXPAND_PRIMARY_WEIGHT,
-      1.0 - CONFIG.EXPAND_PRIMARY_WEIGHT
-    );
-    allScoredResults.sort((a, b) => b.score - a.score);
-    allScoredResults = deduplicateByTitle(allScoredResults);
     displayedCount = 0;
 
     if (!preserveFilters) {
@@ -1242,7 +1468,7 @@
     }
 
     renderResults(true);
-    console.log(`[scolta:expand] Merged ${allScoredResults.length} results from primary + ${validTerms.length} expanded terms`);
+    console.log(`[scolta:expand] ${sortOverride ? 'Native sort' : 'Merged'}: ${allScoredResults.length} results`);
   }
 
   // --- Main search ---
@@ -1321,6 +1547,7 @@
     const expandPromise = preserveFilters
       ? Promise.resolve(lastExpandedTerms)
       : expandQuery(query);
+    expansionInFlight = !preserveFilters && CONFIG.AI_EXPAND_QUERY;
 
     const primarySearch = await pagefindSearch(searchQuery, activeFilters);
     allScoredResults = await loadAndScoreSearch(primarySearch, scorerQuery, 1.0);
@@ -1374,19 +1601,49 @@
     // Phase 2+3: Expand, merge, then summarize with the final reordered results.
     // Summarize is intentionally deferred until after expansion so the AI sees
     // the same ranking the user sees (expanded terms promote more relevant results).
-    expandPromise.then(async expandedTerms => {
+    expandPromise.then(async expansion => {
+      expansionInFlight = false;
+      // expansion is { terms, sort_hint, subject_terms, filter_hint } or null (or a plain array for legacy cache hits).
+      const expandedTerms = Array.isArray(expansion) ? expansion : (expansion?.terms ?? null);
+      const sortHint = Array.isArray(expansion) ? null : (expansion?.sort_hint ?? null);
+      const subjectTerms = Array.isArray(expansion) ? null : (Array.isArray(expansion?.subject_terms) ? expansion.subject_terms : null);
+      const filterHint = Array.isArray(expansion) ? null : (expansion?.filter_hint ?? null);
+
       if (!preserveFilters) {
-        lastExpandedTerms = expandedTerms;
+        lastExpandedTerms = expansion;
+        currentSortOverride = sortHint;
+        // Apply LLM-detected filter intent by merging into activeFilters.
+        llmAppliedFilters = {};
+        if (filterHint) {
+          for (const [dim, val] of Object.entries(filterHint)) {
+            if (typeof dim === 'string' && dim && typeof val === 'string' && val) {
+              llmAppliedFilters[dim] = val;
+              if (!activeFilters[dim]) {
+                activeFilters[dim] = new Set();
+              }
+              activeFilters[dim].add(val);
+            }
+          }
+        }
       }
       renderExpandedTerms(expandedTerms, query);
-      await mergeExpandedSearchResults(expandedTerms, query, searchQuery, preserveFilters, version);
+      await mergeExpandedSearchResults(expandedTerms, query, searchQuery, preserveFilters, version, currentSortOverride, subjectTerms);
 
       if (version !== searchVersion) return;
+
+      // If mergeExpandedSearchResults returned early (no valid terms, no sort override),
+      // it did not call renderResults(); show the final state now.
+      if (allScoredResults.length === 0) {
+        renderResults();
+      }
+
+      renderSortIndicator(currentSortOverride);
+      renderFilterBadges();
 
       const expandedLabel = expandedTerms
         ? expandedTerms.filter(t => t.toLowerCase() !== query.toLowerCase())
         : [];
-      summarizeResults(query, allScoredResults, expandedLabel);
+      summarizeResults(query, allScoredResults, expandedLabel, sortHint, filterHint);
     });
   }
 
@@ -1399,11 +1656,20 @@
     els.expandedTerms.style.display = "none";
     els.aiSummary.style.display = "none";
     els.noResults.style.display = "none";
+    els.sortIndicator.style.display = "none";
+    els.sortIndicator.innerHTML = '';
+    if (els.filterIndicator) {
+      els.filterIndicator.style.display = "none";
+      els.filterIndicator.innerHTML = '';
+    }
     allScoredResults = [];
     displayedCount = 0;
     conversationMessages = [];
     followUpCount = 0;
     activeFilters = {};
+    currentSortOverride = null;
+    llmAppliedFilters = {};
+    expansionInFlight = false;
 
     // Remove search query and filter params from URL.
     try {
@@ -1517,6 +1783,9 @@
     if (filtered.length === 0) {
       container.innerHTML = "";
       header.innerHTML = "";
+      if (expansionInFlight) {
+        return;
+      }
       noResults.style.display = "block";
       loadMore.style.display = "none";
       return;
@@ -1573,7 +1842,8 @@
   }
 
   function showMore() {
-    renderResults(lastExpandedTerms && lastExpandedTerms.length > 0);
+    const terms = Array.isArray(lastExpandedTerms) ? lastExpandedTerms : lastExpandedTerms?.terms;
+    renderResults(terms && terms.length > 0);
   }
 
   // ==========================================================================
@@ -1605,6 +1875,8 @@
         <aside class="scolta-filters" id="scolta-filters"></aside>
         <div>
           <div id="scolta-ai-summary" style="display:none;"></div>
+          <div id="scolta-sort-indicator" style="display:none;"></div>
+          <div id="scolta-filter-indicator" style="display:none;"></div>
           <div class="scolta-results-header" id="scolta-results-header"></div>
           <div id="scolta-results"></div>
           <button class="scolta-load-more" id="scolta-load-more" style="display:none;">Show more results</button>
@@ -1626,6 +1898,8 @@
       layout: root.querySelector('#scolta-layout'),
       filters: root.querySelector('#scolta-filters'),
       aiSummary: root.querySelector('#scolta-ai-summary'),
+      sortIndicator: root.querySelector('#scolta-sort-indicator'),
+      filterIndicator: root.querySelector('#scolta-filter-indicator'),
       resultsHeader: root.querySelector('#scolta-results-header'),
       results: root.querySelector('#scolta-results'),
       loadMore: root.querySelector('#scolta-load-more'),
@@ -1654,6 +1928,17 @@
       const termEl = e.target.closest("[data-scolta-search-term]");
       if (termEl) {
         searchTerm(termEl.dataset.scoltaSearchTerm);
+        return;
+      }
+      // Sort indicator dismiss → fall back to relevance sort
+      if (e.target.closest("[data-scolta-sort-dismiss]")) {
+        dismissSortOverride();
+        return;
+      }
+      // Filter badge dismiss → remove that LLM-applied filter
+      const filterDismissEl = e.target.closest("[data-scolta-filter-dismiss]");
+      if (filterDismissEl) {
+        dismissLlmFilter(filterDismissEl.dataset.scoltaFilterDismiss);
         return;
       }
       // Follow-up submit button
