@@ -79,6 +79,11 @@ class Post extends Model
             $bodyHtml .= '<p class="author">'.e($displayName).' @'.e($username).'</p>';
         }
 
+        $filters = [];
+        if ($this->relationLoaded('hashtags') && $this->hashtags->isNotEmpty()) {
+            $filters['hashtag'] = $this->hashtags->pluck('name')->toArray();
+        }
+
         return new ContentItem(
             id: 'post-'.$this->id,
             title: $displayName ? $displayName.' on MyStream' : 'MyStream post',
@@ -89,6 +94,7 @@ class Post extends Model
             sortable: [
                 'star_count' => $this->star_count,
             ],
+            filters: $filters,
         );
     }
 
