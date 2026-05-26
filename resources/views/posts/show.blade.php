@@ -45,7 +45,7 @@
         @if($post->hashtags->isNotEmpty())
         <div class="mt-2 flex flex-wrap gap-1">
             @foreach($post->hashtags as $tag)
-            <a href="{{ route('hashtags.show', $tag) }}" class="hashtag">#{{ $tag->name }}</a>
+            <a href="{{ route('search', ['q' => '#' . $tag->name]) }}" class="hashtag">#{{ $tag->name }}</a>
             @endforeach
         </div>
         @endif

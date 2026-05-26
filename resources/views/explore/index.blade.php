@@ -11,7 +11,7 @@
         <h2 class="text-base font-semibold text-charcoal mb-3">Trending topics</h2>
         <div class="bg-white border border-gray-200 rounded-xl overflow-hidden">
             @foreach($trendingHashtags as $tag)
-            <a href="{{ route('hashtags.show', $tag) }}" class="flex justify-between items-center px-4 py-3 hover:bg-teal-50 transition-colors border-b border-gray-100 last:border-0">
+            <a href="{{ route('search', ['q' => '#' . $tag->name]) }}" class="flex justify-between items-center px-4 py-3 hover:bg-teal-50 transition-colors border-b border-gray-100 last:border-0">
                 <span class="text-teal-700 font-semibold">#{{ $tag->name }}</span>
                 <span class="text-gray-400 text-sm">{{ number_format($tag->post_count) }} posts</span>
             </a>

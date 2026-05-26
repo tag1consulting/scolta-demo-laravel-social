@@ -155,7 +155,7 @@
                         <h3 class="font-semibold text-sm text-charcoal mb-3">Trending topics</h3>
                         <div class="space-y-2">
                             @foreach($sidebarHashtags as $tag)
-                            <a href="{{ route('hashtags.show', $tag) }}" class="flex justify-between items-center text-sm hover:bg-teal-50 -mx-2 px-2 py-1 rounded-lg transition-colors">
+                            <a href="{{ route('search', ['q' => '#' . $tag->name]) }}" class="flex justify-between items-center text-sm hover:bg-teal-50 -mx-2 px-2 py-1 rounded-lg transition-colors">
                                 <span class="text-teal-700 font-medium">#{{ $tag->name }}</span>
                                 <span class="text-gray-400 text-xs">{{ number_format($tag->post_count) }}</span>
                             </a>
