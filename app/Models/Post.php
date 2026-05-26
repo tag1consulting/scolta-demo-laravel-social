@@ -63,11 +63,12 @@ class Post extends Model
         $displayName = $user?->display_name ?? '';
         $username = $user?->username ?? '';
 
-        // Include author context in the indexed body so "posts by fitness people"
-        // can surface author names, and hashtags surface as search terms.
-        $hashtagText = $this->relationLoaded('hashtags')
-            ? $this->hashtags->pluck('name')->map(fn ($t) => '#'.$t)->implode(' ')
-            : '';
+        if (! $this->relationLoaded('hashtags')) {
+            $this->load('hashtags');
+        }
+        $hashtagNames = $this->hashtags->pluck('name');
+
+        $hashtagText = $hashtagNames->map(fn ($t) => '#'.$t)->implode(' ');
 
         $bodyText = $this->body;
         if ($hashtagText) {
@@ -80,8 +81,8 @@ class Post extends Model
         }
 
         $filters = [];
-        if ($this->relationLoaded('hashtags') && $this->hashtags->isNotEmpty()) {
-            $filters['hashtag'] = $this->hashtags->pluck('name')->toArray();
+        if ($hashtagNames->isNotEmpty()) {
+            $filters['hashtag'] = $hashtagNames->all();
         }
 
         return new ContentItem(
