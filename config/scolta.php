@@ -81,6 +81,15 @@ return [
     ],
 
     'sortable_fields' => ['star_count', 'date'],
+    'sortable_field_descriptions' => [
+        'star_count' => 'Number of stars (likes) the post received',
+        'date' => 'Date the post was published',
+    ],
+
+    'filter_fields' => ['hashtag'],
+    'filter_field_descriptions' => [
+        'hashtag' => 'Post hashtag/topic. The user may mention a hashtag directly (#fitness, #pets, #cooking) or describe a topic that maps to common hashtags. Common hashtags include: fitness, pets, cooking, travel, photography, gaming, music, art, nature, food, coffee, hiking, running, yoga, gardening, reading, crafts, sunset, beach, mountains',
+    ],
 
     /*
     |--------------------------------------------------------------------------
