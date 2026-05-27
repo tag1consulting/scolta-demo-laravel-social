@@ -5863,12 +5863,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/tag1consulting/scolta-laravel.git",
-                "reference": "13e4bcc737e17beb866cce8ff43409d8afef07a2"
+                "reference": "5278655972546b17320963bbb34ddab14456d537"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/tag1consulting/scolta-laravel/zipball/13e4bcc737e17beb866cce8ff43409d8afef07a2",
-                "reference": "13e4bcc737e17beb866cce8ff43409d8afef07a2",
+                "url": "https://api.github.com/repos/tag1consulting/scolta-laravel/zipball/5278655972546b17320963bbb34ddab14456d537",
+                "reference": "5278655972546b17320963bbb34ddab14456d537",
                 "shasum": ""
             },
             "require": {
@@ -5938,7 +5938,7 @@
                 "source": "https://github.com/tag1consulting/scolta-laravel/tree/main",
                 "issues": "https://github.com/tag1consulting/scolta-laravel/issues"
             },
-            "time": "2026-05-19T11:33:17+00:00"
+            "time": "2026-05-26T23:59:59+00:00"
         },
         {
             "name": "tag1/scolta-php",
@@ -5946,12 +5946,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/tag1consulting/scolta-php.git",
-                "reference": "0412d1e3e2299192319d96ce70ac9d6c925892ac"
+                "reference": "509dcc44f5dbc6721baa893d1ca704b31ad96170"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/tag1consulting/scolta-php/zipball/0412d1e3e2299192319d96ce70ac9d6c925892ac",
-                "reference": "0412d1e3e2299192319d96ce70ac9d6c925892ac",
+                "url": "https://api.github.com/repos/tag1consulting/scolta-php/zipball/509dcc44f5dbc6721baa893d1ca704b31ad96170",
+                "reference": "509dcc44f5dbc6721baa893d1ca704b31ad96170",
                 "shasum": ""
             },
             "require": {
@@ -6020,7 +6020,7 @@
                 "source": "https://github.com/tag1consulting/scolta-php/tree/main",
                 "issues": "https://github.com/tag1consulting/scolta-php/issues"
             },
-            "time": "2026-05-25T17:26:55+00:00"
+            "time": "2026-05-26T23:51:54+00:00"
         },
         {
             "name": "tijsverkoyen/css-to-inline-styles",
