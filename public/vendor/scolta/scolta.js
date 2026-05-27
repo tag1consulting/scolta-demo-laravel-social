@@ -38,6 +38,10 @@
 (function (global) {
   'use strict';
 
+  function debugLog(/* ...args */) {
+    if (global.SCOLTA_DEBUG) console.log.apply(console, arguments);
+  }
+
   // ==========================================================================
   // CONFIGURATION — read from window.scolta.scoring, with defaults matching
   // the original implementation exactly.
@@ -65,8 +69,8 @@
       // AI features
       AI_EXPAND_QUERY: s.AI_EXPAND_QUERY ?? true,
       AI_SUMMARIZE: s.AI_SUMMARIZE ?? true,
-      AI_SUMMARY_TOP_N: s.AI_SUMMARY_TOP_N ?? 5,
-      AI_SUMMARY_MAX_CHARS: s.AI_SUMMARY_MAX_CHARS ?? 2000,
+      AI_SUMMARY_TOP_N: s.AI_SUMMARY_TOP_N ?? 10,
+      AI_SUMMARY_MAX_CHARS: s.AI_SUMMARY_MAX_CHARS ?? 4000,
       EXPAND_PRIMARY_WEIGHT: s.EXPAND_PRIMARY_WEIGHT ?? 0.5,
       CROSS_LIST_BONUS: s.CROSS_LIST_BONUS ?? 0.15,
       AI_MAX_FOLLOWUPS: s.AI_MAX_FOLLOWUPS ?? 3,
@@ -275,8 +279,8 @@
       MAX_PAGEFIND_RESULTS: s.MAX_PAGEFIND_RESULTS ?? 50,
       AI_EXPAND_QUERY: s.AI_EXPAND_QUERY ?? true,
       AI_SUMMARIZE: s.AI_SUMMARIZE ?? true,
-      AI_SUMMARY_TOP_N: s.AI_SUMMARY_TOP_N ?? 5,
-      AI_SUMMARY_MAX_CHARS: s.AI_SUMMARY_MAX_CHARS ?? 2000,
+      AI_SUMMARY_TOP_N: s.AI_SUMMARY_TOP_N ?? 10,
+      AI_SUMMARY_MAX_CHARS: s.AI_SUMMARY_MAX_CHARS ?? 4000,
       EXPAND_PRIMARY_WEIGHT: s.EXPAND_PRIMARY_WEIGHT ?? 0.5,
       CROSS_LIST_BONUS: s.CROSS_LIST_BONUS ?? 0.15,
       AI_MAX_FOLLOWUPS: s.AI_MAX_FOLLOWUPS ?? 3,
@@ -387,12 +391,12 @@
 
     try {
       cachedPagefindFilters = await pagefind.filters();
-      console.log('[scolta] Pagefind filters cached:', Object.keys(cachedPagefindFilters));
+      debugLog('[scolta] Pagefind filters cached:', Object.keys(cachedPagefindFilters));
     } catch (e) {
       console.warn('[scolta] Failed to cache Pagefind filters:', e.message);
     }
 
-    console.log("[scolta] Pagefind index preloaded");
+    debugLog("[scolta] Pagefind index preloaded");
   }
 
   // Strip the pagefind base path that fullUrl() prepends to root-relative paths.
@@ -417,7 +421,7 @@
       const wasm = await import(wasmPath);
       await wasm.default(); // wasm-pack init() — loads the .wasm binary
       scoltaWasm = wasm;
-      console.log("[scolta] WASM module loaded, version:", wasm.version());
+      debugLog("[scolta] WASM module loaded, version:", wasm.version());
     } catch (e) {
       console.warn("[scolta] WASM module not available, using JS fallback scoring:", e.message);
       scoltaWasm = null;
@@ -492,14 +496,14 @@
         body: JSON.stringify({ query }),
         signal: abortController?.signal,
       });
-      console.log("[scolta:expand] status:", resp.status);
+      debugLog("[scolta:expand] status:", resp.status);
       if (!resp.ok) {
         const errText = await resp.text();
         console.warn("[scolta:expand] error response:", errText);
         return null;
       }
       const data = await resp.json();
-      console.log("[scolta:expand] response:", data);
+      debugLog("[scolta:expand] response:", data);
       if (Array.isArray(data)) {
         return { terms: data, sort_hint: null, subject_terms: null, filter_hint: null };
       }
@@ -767,13 +771,12 @@
     return html;
   }
 
-  // Apply inline formatting: **bold** and [text](url) links.
-  // Links are only rendered if the URL matches allowedLinkDomains
-  // (empty list = allow all links).
   function formatInline(text) {
     const allowedDomains = getInstanceAllowedLinkDomains();
     return text
+      .replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>')
       .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.+?)\*/g, '<em>$1</em>')
       .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (match, linkText, url) => {
         if (allowedDomains.length === 0) {
           return `<a href="${url}" target="_blank" rel="noopener">${linkText}</a>`;
@@ -807,7 +810,7 @@
       scored.sort((a, b) => b.score - a.score);
       const best = scored.slice(0, 5);
       const context = buildLLMContext(best);
-      console.log(`[scolta:followup] Found ${best.length} additional results for: ${searchQuery} (from ${toLoad} candidates)`);
+      debugLog(`[scolta:followup] Found ${best.length} additional results for: ${searchQuery} (from ${toLoad} candidates)`);
       return context;
     } catch (e) {
       console.warn("[scolta:followup] context search failed:", e);
@@ -860,7 +863,7 @@
 
     // Discard if a new search started while we were fetching context
     if (followUpVersion !== searchVersion) {
-      console.log('[scolta:followup] Discarding stale follow-up (version', followUpVersion, 'vs current', searchVersion, ')');
+      debugLog('[scolta:followup] Discarding stale follow-up (version', followUpVersion, 'vs current', searchVersion, ')');
       return;
     }
 
@@ -880,7 +883,7 @@
 
       // Discard if a new search started while we were waiting for the response
       if (followUpVersion !== searchVersion) {
-        console.log('[scolta:followup] Discarding stale follow-up response (version', followUpVersion, 'vs current', searchVersion, ')');
+        debugLog('[scolta:followup] Discarding stale follow-up response (version', followUpVersion, 'vs current', searchVersion, ')');
         conversationMessages.pop();
         return;
       }
@@ -1028,12 +1031,14 @@
 
   const SKIP_FILTER_DIMENSIONS = new Set(['site', 'language', 'content_type', 'entity_type']);
 
-  function matchSubjectToFilters(subjectTerms, availableFilters) {
+  function matchSubjectToFilters(subjectTerms, availableFilters, filterDescriptions) {
     if (!subjectTerms || !subjectTerms.length || !availableFilters) return {};
 
     const keywords = new Set();
     for (const term of subjectTerms) {
-      for (const word of term.toLowerCase().split(/\s+/)) {
+      const lower = term.toLowerCase().trim();
+      if (lower.length > 2) keywords.add(lower);
+      for (const word of lower.split(/\s+/)) {
         if (word.length > 2) keywords.add(word);
       }
     }
@@ -1042,17 +1047,56 @@
     for (const [dimension, values] of Object.entries(availableFilters)) {
       if (SKIP_FILTER_DIMENSIONS.has(dimension.toLowerCase())) continue;
 
+      // Pass 1: exact match — prefer precise hits over substring overlap.
       for (const filterValue of Object.keys(values)) {
         const lowerValue = filterValue.toLowerCase();
         for (const keyword of keywords) {
-          if (lowerValue === keyword
-              || (lowerValue.length > 2 && keyword.includes(lowerValue))
-              || (keyword.length > 2 && lowerValue.includes(keyword))) {
+          if (lowerValue === keyword) {
             matched[dimension] = filterValue;
             break;
           }
         }
         if (matched[dimension]) break;
+      }
+
+      // Pass 2: substring fallback — only if no exact match was found.
+      if (!matched[dimension]) {
+        for (const filterValue of Object.keys(values)) {
+          const lowerValue = filterValue.toLowerCase();
+          for (const keyword of keywords) {
+            if ((lowerValue.length > 2 && keyword.includes(lowerValue))
+                || (keyword.length > 2 && lowerValue.includes(keyword))) {
+              matched[dimension] = filterValue;
+              break;
+            }
+          }
+          if (matched[dimension]) break;
+        }
+      }
+
+      // Pass 3: subcategory matching via filter descriptions.
+      // Descriptions like "Science (physics, chemistry, biology)" let us
+      // match "physics" → "Science" even though "physics" isn't a filter value.
+      if (!matched[dimension] && filterDescriptions) {
+        const desc = (filterDescriptions[dimension] || '').toLowerCase();
+        for (const filterValue of Object.keys(values)) {
+          const escapedValue = filterValue.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const pattern = new RegExp(escapedValue + '\\s*\\(([^)]+)\\)');
+          const m = desc.match(pattern);
+          if (m) {
+            const subcategories = m[1].split(',').map(s => s.trim());
+            for (const sub of subcategories) {
+              if (keywords.has(sub) || [...keywords].some(kw =>
+                (sub.length > 2 && kw.includes(sub)) ||
+                (kw.length > 2 && sub.includes(kw))
+              )) {
+                matched[dimension] = filterValue;
+                break;
+              }
+            }
+          }
+          if (matched[dimension]) break;
+        }
       }
     }
 
@@ -1221,7 +1265,7 @@
     }
 
     if (kept.length < results.length) {
-      console.log(`[scolta:dedup] Removed ${results.length - kept.length} near-duplicate titles`);
+      debugLog(`[scolta:dedup] Removed ${results.length - kept.length} near-duplicate titles`);
     }
     return kept;
   }
@@ -1386,7 +1430,7 @@
     if (validTerms.length === 0 && !sortOverride) return;
 
     if (version !== searchVersion) {
-      console.log('[scolta:expand] Discarding stale expansion (version', version, 'vs current', searchVersion, ')');
+      debugLog('[scolta:expand] Discarding stale expansion (version', version, 'vs current', searchVersion, ')');
       return;
     }
 
@@ -1398,18 +1442,27 @@
       }
     }
 
-    if (sortOverride && sortOverride.field && sortOverride.direction) {
-      // Filter+sort discovery: match subject_terms against cached Pagefind
-      // filters so the search is narrowed to the correct topic at the index
-      // level. No heuristic intersection — Pagefind does the filtering.
-      const subjectFilters = matchSubjectToFilters(subjectTerms, cachedPagefindFilters);
+    let useSortPath = !!(sortOverride && sortOverride.field && sortOverride.direction);
+    let subjectFilters = {};
+
+    if (useSortPath) {
+      const filterDescs = (instanceConfig && instanceConfig.filterFieldDescriptions) || {};
+      subjectFilters = matchSubjectToFilters(subjectTerms, cachedPagefindFilters, filterDescs);
       const hasFilterMatch = Object.keys(subjectFilters).length > 0;
 
       if (hasFilterMatch) {
-        console.log('[scolta:sort] Subject filter match:', JSON.stringify(subjectFilters));
+        debugLog('[scolta:sort] Subject filter match:', JSON.stringify(subjectFilters));
+      } else if (subjectTerms && subjectTerms.length > 0) {
+        debugLog('[scolta:sort] No filter match for subject terms — dropping sort, using relevance');
+        currentSortOverride = null;
+        useSortPath = false;
       } else {
-        console.log('[scolta:sort] No filter match for subject terms, using sort only');
+        debugLog('[scolta:sort] No subject terms, using sort only');
       }
+    }
+
+    if (useSortPath) {
+      const hasFilterMatch = Object.keys(subjectFilters).length > 0;
 
       const mergedFilters = {};
       for (const [dim, vals] of Object.entries(activeFilters)) {
@@ -1439,7 +1492,7 @@
       );
 
       if (version !== searchVersion) {
-        console.log('[scolta:expand] Discarding stale expansion after sort search (version', version, 'vs current', searchVersion, ')');
+        debugLog('[scolta:expand] Discarding stale expansion after sort search (version', version, 'vs current', searchVersion, ')');
         return;
       }
 
@@ -1455,19 +1508,44 @@
       }));
 
       if (version !== searchVersion) {
-        console.log('[scolta:expand] Discarding stale expansion after sort load (version', version, 'vs current', searchVersion, ')');
+        debugLog('[scolta:expand] Discarding stale expansion after sort load (version', version, 'vs current', searchVersion, ')');
         return;
       }
 
       const field = sortOverride.field;
       const desc = sortOverride.direction === 'desc';
-      const withField = [...urlMap.values()].filter(data => {
+      let withField = [...urlMap.values()].filter(data => {
         const v = data.meta?.[field];
         return v !== undefined && v !== null && v !== '';
       });
 
+      const SORT_FALLBACK_THRESHOLD = 20;
+      if (withField.length > 0 && withField.length < SORT_FALLBACK_THRESHOLD) {
+        debugLog('[scolta:sort] Sorted search returned only ' + withField.length + ' results with field "' + field + '", re-running unsorted for JS-side sort');
+        const unsortedSearches = await Promise.all(
+          [...termSet].map(t => pagefindSearch(t, mergedFilters, null))
+        );
+        if (version !== searchVersion) return;
+        const fallbackMap = new Map();
+        await Promise.all(unsortedSearches.map(async (search) => {
+          const toLoad = Math.min(search.results.length, CONFIG.MAX_PAGEFIND_RESULTS);
+          if (toLoad === 0) return;
+          const loaded = await Promise.all(search.results.slice(0, toLoad).map(r => r.data()));
+          for (const data of loaded) {
+            const url = resolveUrl(data.url || '');
+            if (!fallbackMap.has(url)) fallbackMap.set(url, data);
+          }
+        }));
+        if (version !== searchVersion) return;
+        withField = [...fallbackMap.values()].filter(data => {
+          const v = data.meta?.[field];
+          return v !== undefined && v !== null && v !== '';
+        });
+        debugLog('[scolta:sort] Fallback unsorted search yielded ' + withField.length + ' results with field "' + field + '"');
+      }
+
       if (withField.length === 0) {
-        console.log('[scolta:sort] Sort field "' + field + '" absent from all results, falling back to relevance');
+        debugLog('[scolta:sort] Sort field "' + field + '" absent from all results, falling back to relevance');
         currentSortOverride = null;
       } else {
         withField.sort((a, b) => {
@@ -1496,7 +1574,7 @@
       const expandedResults = await searchAndLoadParallel(queries, activeFilters, searchQuery);
 
       if (version !== searchVersion) {
-        console.log('[scolta:expand] Discarding stale expansion after load (version', version, 'vs current', searchVersion, ')');
+        debugLog('[scolta:expand] Discarding stale expansion after load (version', version, 'vs current', searchVersion, ')');
         return;
       }
 
@@ -1516,7 +1594,7 @@
     renderFilters();
 
     renderResults(true);
-    console.log(`[scolta:expand] ${sortOverride ? 'Native sort' : 'Merged'}: ${allScoredResults.length} results`);
+    debugLog(`[scolta:expand] ${sortOverride ? 'Native sort' : 'Merged'}: ${allScoredResults.length} results`);
   }
 
   // --- Main search ---
@@ -1585,7 +1663,7 @@
     const isForcedPhrase =
       trimmedQuery.startsWith('"') && trimmedQuery.endsWith('"') && trimmedQuery.length > 2;
     const scorerQuery = isForcedPhrase ? trimmedQuery : searchQuery;
-    console.log('[scolta:search] Filtered query:', JSON.stringify(sanitizeQueryForLogging(searchQuery)), '(original:', JSON.stringify(sanitizeQueryForLogging(query)), ')');
+    debugLog('[scolta:search] Filtered query:', JSON.stringify(sanitizeQueryForLogging(searchQuery)), '(original:', JSON.stringify(sanitizeQueryForLogging(query)), ')');
 
     allHighlightTerms = meaningfulTerms.length > 0
       ? meaningfulTerms.filter(t => t.length > 2)
@@ -1606,7 +1684,7 @@
     // never fall back to OR — the user explicitly asked for phrase results.
     usedOrFallback = false;
     if (!isForcedPhrase && meaningfulTerms.length > 1 && primarySearch.results.length === 0) {
-      console.log('[scolta:search] AND returned 0 results — running OR fallback');
+      debugLog('[scolta:search] AND returned 0 results — running OR fallback');
       const orQueries = meaningfulTerms.map(term => ({ term, weight: 0.6 }));
       const orResults = await searchAndLoadParallel(orQueries, activeFilters, searchQuery);
       allScoredResults = mergeResults(allScoredResults, orResults);
@@ -1663,11 +1741,20 @@
         if (filterHint) {
           for (const [dim, val] of Object.entries(filterHint)) {
             if (typeof dim === 'string' && dim && typeof val === 'string' && val) {
-              llmAppliedFilters[dim] = val;
+              let canonicalVal = val;
+              if (cachedPagefindFilters && cachedPagefindFilters[dim]) {
+                const knownValues = Object.keys(cachedPagefindFilters[dim]);
+                if (!knownValues.includes(val)) {
+                  const lowerVal = val.toLowerCase();
+                  const ciMatch = knownValues.find(v => v.toLowerCase() === lowerVal);
+                  if (ciMatch) canonicalVal = ciMatch;
+                }
+              }
+              llmAppliedFilters[dim] = canonicalVal;
               if (!activeFilters[dim]) {
                 activeFilters[dim] = new Set();
               }
-              activeFilters[dim].add(val);
+              activeFilters[dim].add(canonicalVal);
             }
           }
         }
@@ -2053,7 +2140,7 @@
 
     // Load Pagefind and Scolta WASM in parallel.
     Promise.all([initPagefind(), initScoltaWasm()]).then(() => {
-      console.log("[scolta] Ready — Pagefind + WASM loaded");
+      debugLog("[scolta] Ready — Pagefind + WASM loaded");
 
       // If URL contains ?q=<query>, auto-execute the search and restore filter state.
       try {
@@ -2082,7 +2169,7 @@
       }
     });
 
-    console.log("[scolta] Initialized");
+    debugLog("[scolta] Initialized");
   }
 
   // Initialize the instance by building the UI inside the container.
