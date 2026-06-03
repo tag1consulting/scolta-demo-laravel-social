@@ -50,13 +50,13 @@
     const s = (global.scolta && global.scolta.scoring) || {};
     return {
       // Recency scoring
-      RECENCY_BOOST_MAX: s.RECENCY_BOOST_MAX ?? 0.5,
+      RECENCY_BOOST_MAX: s.RECENCY_BOOST_MAX ?? 0.25,
       RECENCY_HALF_LIFE_DAYS: s.RECENCY_HALF_LIFE_DAYS ?? 365,
       RECENCY_PENALTY_AFTER_DAYS: s.RECENCY_PENALTY_AFTER_DAYS ?? 1825,
       RECENCY_MAX_PENALTY: s.RECENCY_MAX_PENALTY ?? 0.3,
 
       // Title/content match scoring
-      TITLE_MATCH_BOOST: s.TITLE_MATCH_BOOST ?? 1.0,
+      TITLE_MATCH_BOOST: s.TITLE_MATCH_BOOST ?? 2.0,
       TITLE_ALL_TERMS_MULTIPLIER: s.TITLE_ALL_TERMS_MULTIPLIER ?? 1.5,
       EXACT_TITLE_MATCH_BOOST: s.EXACT_TITLE_MATCH_BOOST ?? 5.0,
       CONTENT_MATCH_BOOST: s.CONTENT_MATCH_BOOST ?? 0.4,
@@ -72,7 +72,9 @@
       AI_SUMMARY_TOP_N: s.AI_SUMMARY_TOP_N ?? 10,
       AI_SUMMARY_MAX_CHARS: s.AI_SUMMARY_MAX_CHARS ?? 4000,
       EXPAND_PRIMARY_WEIGHT: s.EXPAND_PRIMARY_WEIGHT ?? 0.5,
-      CROSS_LIST_BONUS: s.CROSS_LIST_BONUS ?? 0.15,
+      CROSS_LIST_BONUS: s.CROSS_LIST_BONUS ?? 0.05,
+      EXPAND_SUBWORD_MAX_FREQ: s.EXPAND_SUBWORD_MAX_FREQ ?? 0.05,
+      EXPAND_SUBWORD_DENYLIST: s.EXPAND_SUBWORD_DENYLIST ?? [],
       AI_MAX_FOLLOWUPS: s.AI_MAX_FOLLOWUPS ?? 3,
       AI_LANGUAGES: s.AI_LANGUAGES ?? ['en'],
       LANGUAGE: s.LANGUAGE ?? 'en',
@@ -173,10 +175,17 @@
   // "who is Loreen Babcock" → ["loreen", "babcock"]
   // If everything is filtered, fall back to words longer than 2 chars.
   function extractSearchTerms(query) {
+    // Honor CUSTOM_STOP_WORDS in JS just as the WASM scorer does — previously
+    // this used only the built-in STOPWORDS, so JS query tokenization disagreed
+    // with WASM scoring (issue #156 follow-up).
+    const customStops = (getConfig().CUSTOM_STOP_WORDS || []).map(w => String(w).toLowerCase());
+    const effectiveStopwords = customStops.length
+      ? new Set([...STOPWORDS, ...customStops])
+      : STOPWORDS;
     const words = query.toLowerCase().split(/\s+/).filter(w => w.length > 0);
     const meaningful = words
       .map(w => w.replace(/[^\w]/g, ''))
-      .filter(w => !STOPWORDS.has(w) && w.length > 1);
+      .filter(w => !effectiveStopwords.has(w) && w.length > 1);
     if (meaningful.length === 0) {
       return words.filter(w => w.length > 2);
     }
@@ -262,11 +271,11 @@
   function getInstanceConfig() {
     const s = (instanceConfig && instanceConfig.scoring) || {};
     return {
-      RECENCY_BOOST_MAX: s.RECENCY_BOOST_MAX ?? 0.5,
+      RECENCY_BOOST_MAX: s.RECENCY_BOOST_MAX ?? 0.25,
       RECENCY_HALF_LIFE_DAYS: s.RECENCY_HALF_LIFE_DAYS ?? 365,
       RECENCY_PENALTY_AFTER_DAYS: s.RECENCY_PENALTY_AFTER_DAYS ?? 1825,
       RECENCY_MAX_PENALTY: s.RECENCY_MAX_PENALTY ?? 0.3,
-      TITLE_MATCH_BOOST: s.TITLE_MATCH_BOOST ?? 1.0,
+      TITLE_MATCH_BOOST: s.TITLE_MATCH_BOOST ?? 2.0,
       TITLE_ALL_TERMS_MULTIPLIER: s.TITLE_ALL_TERMS_MULTIPLIER ?? 1.5,
       EXACT_TITLE_MATCH_BOOST: s.EXACT_TITLE_MATCH_BOOST ?? 5.0,
       CONTENT_MATCH_BOOST: s.CONTENT_MATCH_BOOST ?? 0.4,
@@ -282,7 +291,9 @@
       AI_SUMMARY_TOP_N: s.AI_SUMMARY_TOP_N ?? 10,
       AI_SUMMARY_MAX_CHARS: s.AI_SUMMARY_MAX_CHARS ?? 4000,
       EXPAND_PRIMARY_WEIGHT: s.EXPAND_PRIMARY_WEIGHT ?? 0.5,
-      CROSS_LIST_BONUS: s.CROSS_LIST_BONUS ?? 0.15,
+      CROSS_LIST_BONUS: s.CROSS_LIST_BONUS ?? 0.05,
+      EXPAND_SUBWORD_MAX_FREQ: s.EXPAND_SUBWORD_MAX_FREQ ?? 0.05,
+      EXPAND_SUBWORD_DENYLIST: s.EXPAND_SUBWORD_DENYLIST ?? [],
       AI_MAX_FOLLOWUPS: s.AI_MAX_FOLLOWUPS ?? 3,
       AI_LANGUAGES: s.AI_LANGUAGES ?? ['en'],
       AUTO_LANGUAGE_FILTER: s.AUTO_LANGUAGE_FILTER ?? false,
@@ -551,7 +562,7 @@
       try {
         const contextItems = topN.map(r => ({
           content: stripHtml(r.data.content || r.data.excerpt || ''),
-          url: ((u) => u.startsWith('/') ? window.location.origin + u : u)(resolveUrl(r.data.url || '')),
+          url: ((u) => u.startsWith('/') ? window.location.origin + u : u)(r.data.meta?.url || resolveUrl(r.data.url || '')),
           title: r.data.meta?.title || '',
         }));
         const extractInput = JSON.stringify({
@@ -705,7 +716,7 @@
     const CONFIG = getInstanceConfig();
     return results.map((r, i) => {
       const title = r.data.meta?.title || "Untitled";
-      const _u = resolveUrl(r.data.url || ""); const url = _u.startsWith("/") ? window.location.origin + _u : _u;
+      const _u = r.data.meta?.url || resolveUrl(r.data.url || ""); const url = _u.startsWith("/") ? window.location.origin + _u : _u;
       const useFullContent = i < 2;
       const text = useFullContent
         ? stripHtml(r.data.content || r.data.excerpt || "")
@@ -1442,6 +1453,51 @@
       }
     }
 
+    // Sub-word frequency guard (issue #156). Multi-word expansion terms are
+    // decomposed into their constituent words so broad queries recover the
+    // recall lost in v1.0.0 — but a word is only added as a search term when
+    // its corpus frequency is below EXPAND_SUBWORD_MAX_FREQ. Low-frequency
+    // domain words ("vegetarian", "cuisine") get added; high-frequency noise
+    // words ("recipes", "cooking") are blocked. Frequency is measured against
+    // the same active filters the real search uses (including the language
+    // partition when auto_language_filter is on), so numerator and denominator
+    // share scope. 0 reproduces v1.0.0 (no sub-words); >=1 admits all sub-words.
+    const subwordMaxFreq = CONFIG.EXPAND_SUBWORD_MAX_FREQ;
+    // Fix A+D (issue #156 follow-up): the frequency guard must never drop a word
+    // the USER actually typed — frequency is a leaky proxy for "generic," and in a
+    // topical corpus the on-topic words are also the high-frequency ones. Exempt
+    // query tokens from the frequency check, EXCEPT words on the guard denylist.
+    const queryTokens = new Set(extractSearchTerms(searchQuery));
+    const subwordDenylist = new Set(
+      (CONFIG.EXPAND_SUBWORD_DENYLIST || []).map(w => String(w).toLowerCase())
+    );
+    const subwordFreqCache = new Map();
+    let subwordCorpusTotal = null;
+    async function subwordAllowed(word) {
+      if (word.length <= 2) return false;
+      if (subwordMaxFreq <= 0) return false;   // v1.0.0 behavior: no sub-words
+      if (subwordMaxFreq >= 1) return true;    // pre-v1.0.0 behavior: all sub-words
+      // Fix A: a sub-word the user literally typed is wanted by definition —
+      // bypass the frequency check. Fix D: unless it's on the guard denylist.
+      if (queryTokens.has(word) && !subwordDenylist.has(word)) return true;
+      if (subwordFreqCache.has(word)) return subwordFreqCache.get(word);
+      let allowed = false;
+      try {
+        if (subwordCorpusTotal === null) {
+          const all = await pagefindSearch(null, activeFilters);
+          subwordCorpusTotal = all.results.length;
+        }
+        if (subwordCorpusTotal > 0) {
+          const hit = await pagefindSearch(word, activeFilters);
+          allowed = (hit.results.length / subwordCorpusTotal) < subwordMaxFreq;
+        }
+      } catch (_) {
+        allowed = false; // fail closed on pagefind error — preserve precision
+      }
+      subwordFreqCache.set(word, allowed);
+      return allowed;
+    }
+
     let useSortPath = !!(sortOverride && sortOverride.field && sortOverride.direction);
     let subjectFilters = {};
 
@@ -1485,6 +1541,14 @@
       const termSet = new Set([searchQuery]);
       for (const term of validTerms) {
         termSet.add(term);
+        const words = extractSearchTerms(term);
+        if (words.length > 1) {
+          for (const word of words) {
+            if (!termSet.has(word) && await subwordAllowed(word)) {
+              termSet.add(word);
+            }
+          }
+        }
       }
 
       const searches = await Promise.all(
@@ -1569,6 +1633,17 @@
         const weight = Math.max(expandBase - (weightIndex * 0.05), 0.1);
         queries.push({ term, weight });
         weightIndex++;
+
+        const words = extractSearchTerms(term);
+        if (words.length > 1) {
+          for (const word of words) {
+            if (!queries.some(q => q.term === word) && await subwordAllowed(word)) {
+              const wordWeight = Math.max(expandBase - (weightIndex * 0.05), 0.1);
+              queries.push({ term: word, weight: wordWeight });
+              weightIndex++;
+            }
+          }
+        }
       }
 
       const expandedResults = await searchAndLoadParallel(queries, activeFilters, searchQuery);
