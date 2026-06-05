@@ -75,6 +75,8 @@
       CROSS_LIST_BONUS: s.CROSS_LIST_BONUS ?? 0.05,
       EXPAND_SUBWORD_MAX_FREQ: s.EXPAND_SUBWORD_MAX_FREQ ?? 0.05,
       EXPAND_SUBWORD_DENYLIST: s.EXPAND_SUBWORD_DENYLIST ?? [],
+      EXPANSION_COMBINE_MODE: s.EXPANSION_COMBINE_MODE ?? 'relevance_union',
+      EXPANSION_PER_TERM_TOP_K: s.EXPANSION_PER_TERM_TOP_K ?? 3,
       AI_MAX_FOLLOWUPS: s.AI_MAX_FOLLOWUPS ?? 3,
       AI_LANGUAGES: s.AI_LANGUAGES ?? ['en'],
       LANGUAGE: s.LANGUAGE ?? 'en',
@@ -215,6 +217,11 @@
     return value;
   }
 
+  function filterDimLabel(dimension) {
+    return FILTER_LABELS[dimension]
+      || (dimension.charAt(0).toUpperCase() + dimension.slice(1).replace(/_/g, ' '));
+  }
+
   // ==========================================================================
   // INSTANCE FACTORY
   // ==========================================================================
@@ -238,7 +245,7 @@
   let conversationMessages = [];
   let followUpCount = 0;
   let abortController = null;
-  let filterCounts = {};
+  let queryFacetCounts = {};   // { dimension: { value: count } } — fixed per typed query
   let currentQuery = "";
   let allHighlightTerms = [];
   let lastExpandedTerms = null;
@@ -294,6 +301,8 @@
       CROSS_LIST_BONUS: s.CROSS_LIST_BONUS ?? 0.05,
       EXPAND_SUBWORD_MAX_FREQ: s.EXPAND_SUBWORD_MAX_FREQ ?? 0.05,
       EXPAND_SUBWORD_DENYLIST: s.EXPAND_SUBWORD_DENYLIST ?? [],
+      EXPANSION_COMBINE_MODE: s.EXPANSION_COMBINE_MODE ?? 'relevance_union',
+      EXPANSION_PER_TERM_TOP_K: s.EXPANSION_PER_TERM_TOP_K ?? 3,
       AI_MAX_FOLLOWUPS: s.AI_MAX_FOLLOWUPS ?? 3,
       AI_LANGUAGES: s.AI_LANGUAGES ?? ['en'],
       AUTO_LANGUAGE_FILTER: s.AUTO_LANGUAGE_FILTER ?? false,
@@ -374,8 +383,8 @@
     }
 
     // Merge all language instances so multilingual facets appear.
-    // pagefind.init() loads only the page language; without merging,
-    // filterCounts.language has one value and renderFilters hides the facet.
+    // pagefind.init() loads only the page language; without merging, the
+    // taxonomy's language dimension has one value and renderFilters hides the facet.
     //
     // pagefind.mergeIndex() skips calls where indexPath is a prefix of the
     // primary instance's basePath (same-index dedup guard). The primary
@@ -537,6 +546,74 @@
     }
   }
 
+  // Build the candidate set fed to the AI summarizer (issue #170).
+  //
+  // `relevance_union` (default) reproduces the historical behavior: take the
+  // top-N off the already relevance-sorted, deduplicated pool.
+  //
+  // `round_robin` addresses sub-query domination — when a query fans out into
+  // distinct sub-topics of unequal corpus size, the relevance-union top-N is
+  // filled entirely by the single largest sub-query, so the summarizer never
+  // sees the smaller ones and cannot mention them. Instead, group results by the
+  // expansion sub-query that produced them (provenance stamped by
+  // searchAndLoadParallel) and deal the top-K from each sub-query in turn until
+  // AI_SUMMARY_TOP_N is filled. This reallocates *within* the existing top-N /
+  // character budget — it never exceeds it — and does not touch the visible
+  // ranked list. A single-bucket pool (focused single-intent query) is identical
+  // to `relevance_union`.
+  function selectSummaryCandidates(results, query, CONFIG) {
+    const topN = CONFIG.AI_SUMMARY_TOP_N;
+    if (CONFIG.EXPANSION_COMBINE_MODE !== 'round_robin') {
+      return results.slice(0, topN);
+    }
+
+    const K = Math.max(1, CONFIG.EXPANSION_PER_TERM_TOP_K | 0);
+
+    // Group by provenance, preserving the incoming relevance order within each
+    // bucket. Results with no stamp (the primary query, or non-expanded
+    // searches) fall under the original query.
+    const buckets = new Map();
+    for (const r of results) {
+      const term = (r.data && r.data.__scoltaSourceTerm) || query;
+      if (!buckets.has(term)) buckets.set(term, []);
+      buckets.get(term).push(r);
+    }
+
+    // One sub-query → no breadth to balance; behave exactly like relevance_union.
+    if (buckets.size <= 1) return results.slice(0, topN);
+
+    // Deal the strongest sub-query first so the lead candidate still reflects
+    // overall relevance.
+    const order = [...buckets.keys()].sort(
+      (a, b) => (buckets.get(b)[0]?.score || 0) - (buckets.get(a)[0]?.score || 0)
+    );
+
+    const picked = [];
+    const seen = new Set();
+    let round = 0;
+    let progressed = true;
+    while (picked.length < topN && progressed) {
+      progressed = false;
+      for (const term of order) {
+        const bucket = buckets.get(term);
+        for (let k = 0; k < K && picked.length < topN; k++) {
+          const idx = round * K + k;
+          if (idx >= bucket.length) break;
+          progressed = true;
+          const r = bucket[idx];
+          // Dedup is by URL already, so `seen` is a safety net against a result
+          // that somehow lands in two buckets.
+          const key = resolveUrl(r.data?.url || '') || r;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          picked.push(r);
+        }
+      }
+      round++;
+    }
+    return picked;
+  }
+
   async function summarizeResults(query, results, expandedTerms = [], sortHint = null, filterHint = null, userFilters = {}) {
     const CONFIG = getInstanceConfig();
     const endpoints = getInstanceEndpoints();
@@ -556,7 +633,7 @@
         <div class="scolta-ai-shimmer" style="width:72%"></div>
       </div>`;
 
-    const topN = results.slice(0, CONFIG.AI_SUMMARY_TOP_N);
+    const topN = selectSummaryCandidates(results, query, CONFIG);
     let context;
     if (scoltaWasm && scoltaWasm.batch_extract_context) {
       try {
@@ -1220,23 +1297,32 @@
     }
   }
 
-  // Compute facet counts from actual result set.
-  // Returns { dimension: { value: count } } for all filter dimensions present in results.
-  function computeFilterCounts(results) {
-    const counts = {};
-    for (const r of results) {
-      const filters = r.data.filters || {};
-      for (const [dim, val] of Object.entries(filters)) {
-        if (!val) continue;
-        const values = Array.isArray(val) ? val : [val];
-        for (const v of values) {
-          if (!v) continue;
-          if (!counts[dim]) counts[dim] = {};
-          counts[dim][v] = (counts[dim][v] || 0) + 1;
-        }
+  // Compute the query-fixed facet counts for a typed query.
+  //
+  // Counts are a fixed property of the typed query: computed once when the query
+  // is submitted, never recomputed on a facet toggle or after AI expansion. A
+  // single Pagefind search returns per-value counts for every dimension in one
+  // shot (`.filters`); the count next to a value means "N of the results for
+  // your search are tagged this." To keep counts stable yet correctly scoped,
+  // the search keeps only STRUCTURAL filter dimensions (language/site/etc. in
+  // SKIP_FILTER_DIMENSIONS — typically the auto-language default) and drops
+  // every user-facing facet selection, so the numbers are independent of which
+  // facets the user has clicked. Expansion is LLM-driven and nondeterministic,
+  // so deriving counts from the deterministic typed query keeps them stable
+  // run-to-run. Returns { dimension: { value: count } }.
+  async function computeQueryFacetCounts(query, baseFilters) {
+    const structuralFilters = {};
+    for (const [dim, vals] of Object.entries(baseFilters || {})) {
+      if (SKIP_FILTER_DIMENSIONS.has(dim.toLowerCase())) {
+        structuralFilters[dim] = vals;
       }
     }
-    return counts;
+    try {
+      const search = await pagefindSearch(query, structuralFilters);
+      return (search && search.filters) ? search.filters : {};
+    } catch (_) {
+      return {};   // facet counts are best-effort — never block render
+    }
   }
 
   // Deduplicate results with near-identical titles using Jaccard similarity.
@@ -1416,6 +1502,13 @@
     for (const [term, items] of byTerm) {
       const weight = items[0].weight;
       const loaded = items.map(i => i.data);
+      // Stamp expansion provenance onto each loaded result so the summary
+      // candidate selector can group by sub-query (issue #170). This survives
+      // mergeResults (which preserves the original data object per URL) and is
+      // invisible to the visible ranked list — only the summarizer consults it.
+      for (const d of loaded) {
+        if (d) d.__scoltaSourceTerm = term;
+      }
       const scoredVsTerm = scoreResults(loaded, term, weight, originalQuery);
       const scoredVsOriginal = scoreResults(loaded, originalQuery, weight * 0.5);
 
@@ -1665,7 +1758,10 @@
 
     displayedCount = 0;
 
-    filterCounts = computeFilterCounts(allScoredResults);
+    // queryFacetCounts is fixed for the typed query — computed once in doSearch's
+    // primary pass and deliberately NOT recomputed here. The panel (dimensions,
+    // values, counts, order) is therefore byte-identical before and after AI
+    // expansion; only the result list and header count change.
     renderFilters();
 
     renderResults(true);
@@ -1792,7 +1888,13 @@
       }
     }
 
-    filterCounts = computeFilterCounts(allScoredResults);
+    // Counts are a fixed property of the typed query: compute them once, only
+    // when the typed query changes (!preserveFilters). A facet toggle, sort, or
+    // load-more (preserveFilters === true) reuses the stored counts so the panel
+    // numbers never move on click.
+    if (!preserveFilters) {
+      queryFacetCounts = await computeQueryFacetCounts(searchQuery, activeFilters);
+    }
 
     renderFilters();
     renderResults();
@@ -1899,26 +2001,20 @@
 
   function renderFilters() {
     const container = els.filters;
+    const taxonomy = cachedPagefindFilters || {};
 
-    // Show dimensions that have more than one unique value, plus any
-    // dimension with an active filter (so the user can always uncheck it).
-    const dims = Object.keys(filterCounts).filter(
-      dim => Object.keys(filterCounts[dim]).length > 1
+    // Dimensions are driven by the index taxonomy, NOT the result set: show
+    // every dimension that is not infrastructure (SKIP_FILTER_DIMENSIONS) and
+    // has more than one distinct value in the taxonomy. A globally single-value
+    // dimension is not a useful facet. This gate is query-independent, so no
+    // dimension ever appears, disappears, or reorders while searching.
+    const dims = Object.keys(taxonomy).filter(
+      dim => !SKIP_FILTER_DIMENSIONS.has(dim.toLowerCase())
+          && Object.keys(taxonomy[dim]).length > 1
     );
-    for (const dim of Object.keys(activeFilters)) {
-      if (activeFilters[dim] instanceof Set && activeFilters[dim].size > 0 && !dims.includes(dim)) {
-        dims.push(dim);
-      }
-    }
 
-    // Order: language first, site second, then remaining dimensions alphabetically.
-    dims.sort((a, b) => {
-      const order = { language: 0, site: 1 };
-      const oa = order[a] ?? 2;
-      const ob = order[b] ?? 2;
-      if (oa !== ob) return oa - ob;
-      return a.localeCompare(b);
-    });
+    // Sort dimensions alphabetically by display label.
+    dims.sort((a, b) => filterDimLabel(a).localeCompare(filterDimLabel(b)));
 
     if (dims.length === 0) {
       container.innerHTML = "";
@@ -1929,23 +2025,25 @@
     els.layout.classList.add("has-filters");
     let html = "";
     for (const dim of dims) {
-      const label = FILTER_LABELS[dim]
-        || (dim.charAt(0).toUpperCase() + dim.slice(1).replace(/_/g, ' '));
-      html += `<div class="scolta-filter-group"><h3>${escapeHtml(label)}</h3>`;
+      html += `<div class="scolta-filter-group"><h3>${escapeHtml(filterDimLabel(dim))}</h3>`;
       const dimFilters = activeFilters[dim] || new Set();
-      const dimCounts = filterCounts[dim] || {};
-      const entries = Object.entries(dimCounts).sort((a, b) => b[1] - a[1]);
-      for (const val of dimFilters) {
-        if (!(val in dimCounts)) {
-          entries.push([val, 0]);
-        }
-      }
-      for (const [val, count] of entries) {
+      const dimCounts = queryFacetCounts[dim] || {};
+      // Values come from the taxonomy, sorted alphabetically by display value —
+      // never by count, which would reorder as counts change. The full value
+      // list is fixed across searches and facet clicks.
+      const vals = Object.keys(taxonomy[dim]).sort(
+        (a, b) => filterDisplayValue(dim, a).localeCompare(filterDisplayValue(dim, b))
+      );
+      for (const val of vals) {
+        const count = dimCounts[val] ?? 0;
         const isActive = dimFilters.has(val);
+        // Uniform zero policy: a count-0 value is shown but disabled, UNLESS it
+        // is currently active (an active value must always remain uncheckable).
+        const disabled = (count === 0 && !isActive) ? " disabled" : "";
         const checked = isActive ? "checked" : "";
         const activeClass = isActive ? " active" : "";
         html += `<label class="scolta-filter-item${activeClass}">
-          <input type="checkbox" value="${escapeHtml(val)}" ${checked}
+          <input type="checkbox" value="${escapeHtml(val)}" ${checked}${disabled}
                  data-scolta-filter-dim="${escapeHtml(dim)}" data-scolta-filter-val="${escapeHtml(val)}">
           ${escapeHtml(filterDisplayValue(dim, val))} <span class="scolta-filter-count">(${count})</span>
         </label>`;
