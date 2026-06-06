@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "b23506353561aa5ba312e0ded82da086",
+    "content-hash": "d96d45fed7ff528e32c3fcefad1502c5",
     "packages": [
         {
             "name": "brick/math",
@@ -5892,13 +5892,13 @@
             },
             "type": "library",
             "extra": {
-                "branch-alias": {
-                    "dev-main": "1.0.x-dev"
-                },
                 "laravel": {
                     "providers": [
                         "Tag1\\ScoltaLaravel\\ScoltaServiceProvider"
                     ]
+                },
+                "branch-alias": {
+                    "dev-main": "1.0.x-dev"
                 }
             },
             "autoload": {
@@ -5906,28 +5906,7 @@
                     "Tag1\\ScoltaLaravel\\": "src/"
                 }
             },
-            "autoload-dev": {
-                "psr-4": {
-                    "Tag1\\ScoltaLaravel\\Tests\\": "tests/"
-                }
-            },
-            "scripts": {
-                "test": [
-                    "phpunit"
-                ],
-                "lint": [
-                    "pint --test"
-                ],
-                "format": [
-                    "pint"
-                ],
-                "analyse": [
-                    "phpstan analyse --no-progress --memory-limit=256M"
-                ],
-                "validate-release": [
-                    "php scripts/validate-release.php"
-                ]
-            },
+            "notification-url": "https://packagist.org/downloads/",
             "license": [
                 "MIT"
             ],
@@ -5989,54 +5968,7 @@
                     "Tag1\\Scolta\\": "src/"
                 }
             },
-            "autoload-dev": {
-                "psr-4": {
-                    "Tag1\\Scolta\\Tests\\": "tests/"
-                }
-            },
-            "archive": {
-                "exclude": [
-                    "vendor/",
-                    "tests/",
-                    "scripts/",
-                    "benchmarks/",
-                    ".github/",
-                    "phpunit.xml",
-                    ".php-cs-fixer.dist.php",
-                    "CLAUDE.md",
-                    ".editorconfig",
-                    "docs/BENCHMARKS-LATEST.md",
-                    "docs/LANGUAGE_PARITY.md"
-                ]
-            },
-            "scripts": {
-                "test": [
-                    "phpunit --no-coverage"
-                ],
-                "lint": [
-                    "php-cs-fixer fix --dry-run --diff"
-                ],
-                "format": [
-                    "php-cs-fixer fix"
-                ],
-                "update-browser-wasm": [
-                    "cp ../scolta-core/pkg/scolta_core_bg.wasm assets/wasm/ && cp ../scolta-core/pkg/scolta_core.js assets/wasm/",
-                    "@update-js-checksum"
-                ],
-                "update-asset-manifest": [
-                    "cd assets && sha256sum js/scolta.js css/scolta.css wasm/scolta_core.js wasm/scolta_core_bg.wasm > ASSETS.sha256"
-                ],
-                "update-js-checksum": [
-                    "@update-asset-manifest",
-                    "awk '$2==\"js/scolta.js\"{print $1}' assets/ASSETS.sha256 > assets/js/scolta.js.sha256"
-                ],
-                "validate-release": [
-                    "php scripts/validate-release.php"
-                ],
-                "check-version-sync": [
-                    "php scripts/check-version-sync.php"
-                ]
-            },
+            "notification-url": "https://packagist.org/downloads/",
             "license": [
                 "MIT"
             ],
@@ -8800,7 +8732,7 @@
         }
     ],
     "aliases": [],
-    "minimum-stability": "dev",
+    "minimum-stability": "stable",
     "stability-flags": {},
     "prefer-stable": true,
     "prefer-lowest": false,

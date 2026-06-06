@@ -62,24 +62,6 @@
             "dont-discover": []
         }
     },
-    "repositories": {
-        "https://github.com/tag1consulting/scolta-laravel": {
-            "type": "vcs",
-            "url": "https://github.com/tag1consulting/scolta-laravel"
-        },
-        "https://github.com/tag1consulting/scolta-php": {
-            "type": "vcs",
-            "url": "https://github.com/tag1consulting/scolta-php"
-        },
-        "scolta-php": {
-            "type": "vcs",
-            "url": "https://github.com/tag1consulting/scolta-php"
-        },
-        "scolta-laravel": {
-            "type": "vcs",
-            "url": "https://github.com/tag1consulting/scolta-laravel"
-        }
-    },
     "config": {
         "optimize-autoloader": true,
         "preferred-install": "dist",
@@ -89,6 +71,6 @@
             "php-http/discovery": true
         }
     },
-    "minimum-stability": "dev",
+    "minimum-stability": "stable",
     "prefer-stable": true
 }
