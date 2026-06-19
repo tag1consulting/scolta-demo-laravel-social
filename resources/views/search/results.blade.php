@@ -98,7 +98,7 @@
             if (input) {
                 clearInterval(tryFill);
                 const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-                nativeInputValueSetter.call(input, {{ json_encode($query) }});
+                nativeInputValueSetter.call(input, @json($query));
                 input.dispatchEvent(new Event('input', { bubbles: true }));
             }
         }, 150);
