@@ -13,3 +13,4 @@ storage/framework/views/*
 .ddev
 docker-compose.yml
 Dockerfile
+bootstrap/cache/*.php
