@@ -100,7 +100,7 @@ docker run -d --name "$IMAGE" --network "$NETWORK" -p "${PORT}:8080" \
   -e DB_USERNAME="$DB_USERNAME" \
   -e DB_PASSWORD="$DB_PASSWORD" \
   -e APP_URL="$BASE_URL" \
-  -e APP_KEY="base64:c21va2V0ZXN0a2V5c21va2V0ZXN0a2V5c21va2V0ZXN0MDA=" \
+  -e APP_KEY="base64:c21va2V0ZXN0a2V5c21va2V0ZXN0a2V5c21va2V0ZXM=" \
   "$IMAGE" >/dev/null
 
 # Poll a URL until it returns a 2xx, following redirects. Prints the last status
@@ -129,6 +129,10 @@ fail_status() {
               "site. This is a broken demo, not a slow one." ;;
     4*)  echo "      A 4xx means the route is not being served as expected." ;;
   esac
+  echo "      --- response body (first 1500 bytes) ---"
+  curl -sS -L --max-redirs 5 "$url" 2>/dev/null | head -c 1500 || true
+  echo
+  echo "      --- container log (last 40 lines) ---"
   docker logs "$IMAGE" 2>&1 | tail -40
   exit 1
 }
