@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "b719a5b145650d68464bad0b97891bbe",
+    "content-hash": "333bb9061168a9c711480e0a7fa5413f",
     "packages": [
         {
             "name": "brick/math",
@@ -5811,16 +5811,16 @@
         },
         {
             "name": "tag1/scolta-laravel",
-            "version": "1.1.0",
+            "version": "1.2.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/tag1consulting/scolta-laravel.git",
-                "reference": "4a54aabe3d9bc0e0eb690fc68c7c04525e87f291"
+                "reference": "0c22e868147de892600e01bcf02bd062a2ffee4f"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/tag1consulting/scolta-laravel/zipball/4a54aabe3d9bc0e0eb690fc68c7c04525e87f291",
-                "reference": "4a54aabe3d9bc0e0eb690fc68c7c04525e87f291",
+                "url": "https://api.github.com/repos/tag1consulting/scolta-laravel/zipball/0c22e868147de892600e01bcf02bd062a2ffee4f",
+                "reference": "0c22e868147de892600e01bcf02bd062a2ffee4f",
                 "shasum": ""
             },
             "require": {
@@ -5829,7 +5829,7 @@
                 "illuminate/routing": "^11.0|^12.0|^13.0",
                 "illuminate/support": "^11.0|^12.0|^13.0",
                 "php": "^8.2",
-                "tag1/scolta-php": "^1.1.0"
+                "tag1/scolta-php": "^1.2.0"
             },
             "require-dev": {
                 "larastan/larastan": "^3.0",
@@ -5845,7 +5845,7 @@
                     ]
                 },
                 "branch-alias": {
-                    "dev-main": "1.1.x-dev"
+                    "dev-main": "1.2.x-dev"
                 }
             },
             "autoload": {
@@ -5875,20 +5875,20 @@
                 "issues": "https://github.com/tag1consulting/scolta-laravel/issues",
                 "source": "https://github.com/tag1consulting/scolta-laravel"
             },
-            "time": "2026-08-01T07:44:12+00:00"
+            "time": "2026-08-07T10:59:17+00:00"
         },
         {
             "name": "tag1/scolta-php",
-            "version": "1.1.0",
+            "version": "1.2.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/tag1consulting/scolta-php.git",
-                "reference": "8fac0c70d24c06b4e146cfc653af353f3527f9ad"
+                "reference": "9f221eebf2c3a38cfc3d4d9c4a130bc0dd0ffca1"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/tag1consulting/scolta-php/zipball/8fac0c70d24c06b4e146cfc653af353f3527f9ad",
-                "reference": "8fac0c70d24c06b4e146cfc653af353f3527f9ad",
+                "url": "https://api.github.com/repos/tag1consulting/scolta-php/zipball/9f221eebf2c3a38cfc3d4d9c4a130bc0dd0ffca1",
+                "reference": "9f221eebf2c3a38cfc3d4d9c4a130bc0dd0ffca1",
                 "shasum": ""
             },
             "require": {
@@ -5909,7 +5909,7 @@
             "type": "library",
             "extra": {
                 "branch-alias": {
-                    "dev-main": "1.1.x-dev"
+                    "dev-main": "1.2.x-dev"
                 }
             },
             "autoload": {
@@ -5940,7 +5940,7 @@
                 "issues": "https://github.com/tag1consulting/scolta-php/issues",
                 "source": "https://github.com/tag1consulting/scolta-php"
             },
-            "time": "2026-08-01T06:55:54+00:00"
+            "time": "2026-08-07T09:47:23+00:00"
         },
         {
             "name": "tijsverkoyen/css-to-inline-styles",
